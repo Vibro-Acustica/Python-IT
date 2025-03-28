@@ -1,10 +1,11 @@
 import sys
 import json
 import os
-from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, QTabWidget, 
-                             QLabel, QLineEdit, QPushButton, QGridLayout, QListWidget, 
-                             QComboBox, QTextBrowser, QMessageBox, QStatusBar, QHBoxLayout, QFrame)
-from PyQt6.QtGui import QFont
+from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, QTabWidget,
+                             QLabel, QLineEdit, QPushButton, QGridLayout, QListWidget,
+                             QComboBox, QTextBrowser, QMessageBox, QStatusBar, QHBoxLayout, QFrame,
+                             QFileDialog, QProgressBar, QCheckBox, QTabWidget, QListWidgetItem)  # Importação corrigida
+from PyQt6.QtGui import QFont, QDoubleValidator
 from PyQt6.QtCore import Qt
 
 class PersistenceManager:
@@ -120,6 +121,11 @@ class StyleHelper:
             font-weight: bold;
             margin-bottom: 5px;
         }
+
+        /* Checkboxes */
+        QCheckBox {
+            color: #333; /* Cor do texto do checkbox */
+        }
         """
 
 class EnhancedSection(QFrame):
@@ -181,12 +187,16 @@ class MainApp(QMainWindow):
         self.test_conditions_tab = self.create_test_conditions_tab()
         self.warnings_tab = self.create_warnings_tab()
         self.documentation_tab = self.create_documentation_tab()
+        self.measurements_tab = self.create_measurements_tab()
+        self.results_tab = QResultsTab()
         
         self.tabs.addTab(self.tube_setup_tab, "Tube Setup")
         self.tabs.addTab(self.samples_tab, "Samples")
         self.tabs.addTab(self.test_conditions_tab, "Test Conditions")
         self.tabs.addTab(self.warnings_tab, "Warnings")
         self.tabs.addTab(self.documentation_tab, "Documentation")
+        self.tabs.addTab(self.measurements_tab, "Measuments")
+        self.tabs.addTab(self.results_tab, "Results")
         
         main_layout.addWidget(self.tabs)
         main_widget.setLayout(main_layout)
@@ -234,12 +244,179 @@ class MainApp(QMainWindow):
     def create_documentation_tab(self):
         tab = QDocumentationTab()
         return tab
+    
+    def create_measurements_tab(self):
+        tab = QMeasurementsTab()
+        return tab
+    
+class QMeasurementsTab(QWidget):
+    def __init__(self):
+        super().__init__()
+        layout = QVBoxLayout()
+
+        self.measurements_tab_control = QTabWidget()
+
+        self.measure_tab = QMeasureTab()
+        self.processing_tab = QProcessingTab()
+
+        self.measurements_tab_control.addTab(self.measure_tab, "Measure")
+        self.measurements_tab_control.addTab(self.processing_tab, "Processing")
+
+        layout.addWidget(self.measurements_tab_control)
+        self.setLayout(layout)
+
+class QMeasureTab(QWidget):
+    def __init__(self):
+        super().__init__()
+        layout = QVBoxLayout()
+
+        measure_control_section = EnhancedSection("Measurements Control")
+        measure_control_layout = QVBoxLayout()
+
+        self.amostras_listbox = QListWidget()
+        self.amostras_listbox.addItem("Amostra_x")
+        self.amostras_listbox.addItem("Amostra_y")
+        self.amostras_listbox.setStyleSheet("color : black")
+        measure_control_layout.addWidget(QLabel("Samples List"))
+        measure_control_layout.addWidget(self.amostras_listbox)
+
+        self.start_measurement_button = QPushButton("Measure")
+        measure_control_layout.addWidget(self.start_measurement_button)
+
+        self.resultados_listbox = QListWidget()
+        self.resultados_listbox.addItem("Resultado_x")
+        self.resultados_listbox.setStyleSheet("color : black")
+        measure_control_layout.addWidget(QLabel("Measurements Results"))
+        measure_control_layout.addWidget(self.resultados_listbox)
+
+        measure_control_section.content_layout.addLayout(measure_control_layout, 0, 0)
+        layout.addWidget(measure_control_section)
+        self.setLayout(layout)
+
+class QProcessingTab(QWidget):
+    def __init__(self):
+        super().__init__()
+        layout = QVBoxLayout()
+
+        post_processing_section = EnhancedSection("Post Processing")
+        post_processing_layout = QGridLayout()
+
+        self.measurements_checklist = QListWidget()
+        self.measurements_checklist.setStyleSheet("color: #333;")
+
+        item1 = QListWidgetItem("Test")
+        item1.setFlags(item1.flags() | Qt.ItemFlag.ItemIsUserCheckable)
+        item1.setCheckState(Qt.CheckState.Unchecked)
+        self.measurements_checklist.addItem(item1)
+
+        item2 = QListWidgetItem("Test")
+        item2.setFlags(item2.flags() | Qt.ItemFlag.ItemIsUserCheckable)
+        item2.setCheckState(Qt.CheckState.Checked)
+        self.measurements_checklist.addItem(item2)
+
+        item3 = QListWidgetItem("123")
+        item3.setFlags(item3.flags() | Qt.ItemFlag.ItemIsUserCheckable)
+        item3.setCheckState(Qt.CheckState.Checked)
+        self.measurements_checklist.addItem(item3)
+
+        post_processing_layout.addWidget(QLabel("Measurements List"), 0, 0)
+        post_processing_layout.addWidget(self.measurements_checklist, 1, 0)
+
+        operations_layout = QVBoxLayout()
+        operations_layout.addWidget(QLabel("Operations"))
+
+        self.avarege_checkbox = QCheckBox("Avarege")
+        self.combine_checkbox = QCheckBox("Combine")
+        self.extract_checkbox = QCheckBox("Extract third-octave")
+
+        operations_layout.addWidget(self.avarege_checkbox)
+        operations_layout.addWidget(self.combine_checkbox)
+        operations_layout.addWidget(self.extract_checkbox)
+
+        self.compute_button = QPushButton("Compute")
+        operations_layout.addWidget(self.compute_button)
+
+        post_processing_layout.addLayout(operations_layout, 1, 2)
+
+        post_processing_section.content_layout.addLayout(post_processing_layout, 0, 0)
+        layout.addWidget(post_processing_section)
+        self.setLayout(layout)
+
+
+class QResultsTab(QWidget):
+    def __init__(self):
+        super().__init__()
+        layout = QVBoxLayout()
+
+        results_section = EnhancedSection("Post Processed Results")
+        results_layout = QGridLayout()
+
+        self.concluded_measurements = QListWidget()
+        item1 = QListWidgetItem("Measurement-1")
+        item1.setFlags(item1.flags() | Qt.ItemFlag.ItemIsUserCheckable)
+        item1.setCheckState(Qt.CheckState.Unchecked)
+        self.concluded_measurements.addItem(item1)
+
+        item2 = QListWidgetItem("Measurement-2")
+        item2.setFlags(item2.flags() | Qt.ItemFlag.ItemIsUserCheckable)
+        item2.setCheckState(Qt.CheckState.Checked)
+        self.concluded_measurements.addItem(item2)
+
+        item3 = QListWidgetItem("Measurement-3")
+        item3.setFlags(item3.flags() | Qt.ItemFlag.ItemIsUserCheckable)
+        item3.setCheckState(Qt.CheckState.Checked)
+        self.concluded_measurements.addItem(item3)
+
+        results_layout.addWidget(QLabel("Processeds Measurements List"), 0, 0)
+        results_layout.addWidget(self.concluded_measurements, 1, 0)
+
+        evaluation_layout = QVBoxLayout()
+        evaluation_layout.addWidget(QLabel("Evaluation Metrics"))
+
+        self.absorption_coef_graph = QCheckBox("Absorption Coeficient")
+        self.reflection_coef_graph = QCheckBox("Reflection Coeficient")
+        self.impedance_ratio_graph = QCheckBox("Impedance Ratio")
+        self.admittance_ratio_graph = QCheckBox("Admittance Ratio")
+        self.transfer_function_graph = QCheckBox("Transfer Function")
+        self.impedance_graph = QCheckBox("Impedance")
+        self.propagation_constant_graph = QCheckBox("Propagation Constant")
+
+        horizontal_layout1 = QHBoxLayout()
+        horizontal_layout1.addWidget(self.absorption_coef_graph)
+        horizontal_layout1.addWidget(self.reflection_coef_graph)
+        evaluation_layout.addLayout(horizontal_layout1)
+
+        horizontal_layout2 = QHBoxLayout()
+        horizontal_layout2.addWidget(self.impedance_ratio_graph)
+        horizontal_layout2.addWidget(self.admittance_ratio_graph)
+        evaluation_layout.addLayout(horizontal_layout2)
+
+        horizontal_layout3 = QHBoxLayout()
+        horizontal_layout3.addWidget(self.transfer_function_graph)
+        horizontal_layout3.addWidget(self.impedance_graph)
+        evaluation_layout.addLayout(horizontal_layout3)
+
+        evaluation_layout.addWidget(self.propagation_constant_graph)
+
+        results_layout.addLayout(evaluation_layout, 1, 2)
+
+        # Adiciona o QLabel para exibir os gráficos
+        self.graph_label = QLabel()
+        self.graph_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        results_layout.addWidget(self.graph_label, 2, 0, 1, 3)  # Ocupa toda a largura
+
+        results_section.content_layout.addLayout(results_layout, 0, 0)
+        layout.addWidget(results_section)
+        self.setLayout(layout)
+
+    def set_graph(self, pixmap):
+        self.graph_label.setPixmap(pixmap)
 
 class QTubeSetupTab(QWidget):
     def __init__(self):
         super().__init__()
         layout = QVBoxLayout()
-        
+
         # Tube Dimensions Section
         tube_section = EnhancedSection("Tube Dimensions")
         
@@ -256,40 +433,39 @@ class QTubeSetupTab(QWidget):
         tube_section.add_field("Tube Diameter (mm)", self.tube_diameter)
         
         layout.addWidget(tube_section)
-        
+
         # Action Buttons
         button_layout = QHBoxLayout()
-        save_button = QPushButton("Save Measurements")
-        save_button.clicked.connect(self.save_measurements)
-        reset_button = QPushButton("Reset")
-        reset_button.clicked.connect(self.reset_fields)
+        self.save_button = QPushButton("Save Measurements")
+        self.reset_button = QPushButton("Reset")
         
-        button_layout.addWidget(save_button)
-        button_layout.addWidget(reset_button)
+        button_layout.addWidget(self.save_button)
+        button_layout.addWidget(self.reset_button)
         layout.addLayout(button_layout)
         
         self.setLayout(layout)
 
-    def save_measurements(self):
-        # Collect data
-        data = {
+    def set_controller(self, controller):
+        self.controller = controller
+        self.save_button.clicked.connect(self.controller.save_measurements)
+        self.reset_button.clicked.connect(self.controller.reset_fields)
+
+    def get_input_data(self):
+        return {
             'mic_spacing': self.mic_spacing.text(),
             'mic1_sample': self.mic1_sample.text(),
             'mic2_sample': self.mic2_sample.text(),
             'tube_diameter': self.tube_diameter.text()
         }
-        
-        # Save to JSON
-        PersistenceManager.save_data('tube_setup.json', data)
-        
-        # Show success message
-        QMessageBox.information(self, "Saved", "Tube setup measurements saved successfully!")
 
     def reset_fields(self):
         self.mic_spacing.clear()
         self.mic1_sample.clear()
         self.mic2_sample.clear()
         self.tube_diameter.clear()
+
+    def display_message(self, message):
+        QMessageBox.information(self, "Info", message)
 
     def load_data(self, data):
         self.mic_spacing.setText(data.get('mic_spacing', ''))

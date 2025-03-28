@@ -3,7 +3,38 @@ import sys
 from win32com.client import Dispatch
 from DataReader import DWDataReader
 
-class DewesoftController:
+import json
+
+class TubeSetupModel:
+    def __init__(self):
+        self.data = {
+            'mic_spacing': '',
+            'mic1_sample': '',
+            'mic2_sample': '',
+            'tube_diameter': ''
+        }
+        self.filename = ''
+
+    def save_data(self, filename):
+        with open(filename, 'w') as f:
+            json.dump(self.data, f)
+
+    def load_data(self, filename):
+        try:
+            with open(filename, 'r') as f:
+                self.data = json.load(f)
+        except FileNotFoundError:
+            print(f"File {filename} not found")
+            self.data = {}
+        return self.data
+
+    def set_data(self, mic_spacing, mic1_sample, mic2_sample, tube_diameter):
+        self.data['mic_spacing'] = mic_spacing
+        self.data['mic1_sample'] = mic1_sample
+        self.data['mic2_sample'] = mic2_sample
+        self.data['tube_diameter'] = tube_diameter
+
+class Dewesoft:
     def __init__(self):
         self.dw = Dispatch("Dewesoft.App")
         sys.stdout.flush()
@@ -39,7 +70,7 @@ class DewesoftController:
         sys.stdout.flush()
 
 def run():
-    dewesoft = DewesoftController()
+    dewesoft = Dewesoft()
     dewesoft.set_sample_rate(1000) 
     dewesoft.set_dimensions(800, 600)
     dewesoft.load_setup("C:\\Users\\jvv20\\Vibra\\DeweSoftData\\Setups\\test.dxs")
