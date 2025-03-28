@@ -1,42 +1,61 @@
-from win32com.client import Dispatch
 import time
 import sys
+from win32com.client import Dispatch
+from DataReader import DWDataReader
 
-# create DCOM object
-dw = Dispatch("Dewesoft.App")
+class DewesoftController:
+    def __init__(self):
+        self.dw = Dispatch("Dewesoft.App")
+        sys.stdout.flush()
+        self.dw.Init()
+        self.dw.Enabled = 1
+        self.dw.Visible = 1
 
-print("Initializing Dewesoft... ", end = "")
-sys.stdout.flush()
-dw.Init()
-dw.Enabled = 1
-dw.Visible = 1
-print('done.')
+    def set_sample_rate(self, sample_rate: int) -> None:
+        self.dw.MeasureSampleRate = sample_rate
 
-# set window dimensions
-dw.Top = 0
-dw.Left = 0
-dw.Width = 1024
-dw.Height = 768
+    def load_setup(self, setup_path: str) -> None:
+        self.dw.LoadSetup(setup_path)
 
-setup = "C:\\Users\\jvv20\\Vibra\\DeweSoftData\\Setups\\test.dxs"
+    def set_dimensions(self, width: int, height: int) -> None:
+        self.dw.Top = 0
+        self.dw.Left = 0
+        self.dw.Width = width
+        self.dw.Height = height
 
-dw.LoadSetup(setup)
+    def measure(self, seconds: int, filename: str) -> None:
+        print(f"Running measurements for {seconds} seconds")
+        self.dw.Start()
+        full_name = filename + ".dxd"
+        self.dw.StartStoring(full_name)
+        time.sleep(seconds)
+        self.dw.Stop()
 
-new_file_name = setup.split('\\')[-1].replace('.dxs', "res")+'.dxd'
-# set sample rate to 10 KHz
-dw.MeasureSampleRate = 10000
+    def close(self) -> None:
+        print("Closing Dewesoft... ", end="")
+        sys.stdout.flush()
+        self.dw = None
+        print("done.")
+        sys.stdout.flush()
 
-# start measure mode and wait a little
-delay = 5
-print("Running measure mode for %d seconds..." % delay)
-dw.Start()
-dw.StartStoring(new_file_name)
-time.sleep(delay)
-dw.Stop()
+def run():
+    dewesoft = DewesoftController()
+    dewesoft.set_sample_rate(1000) 
+    dewesoft.set_dimensions(800, 600)
+    dewesoft.load_setup("C:\\Users\\jvv20\\Vibra\\DeweSoftData\\Setups\\test.dxs")
+    
+    dewesoft.measure(2, "first")
+    #dewesoft.measure(2, "second")
+    
+    dewesoft.close()
 
-# close dewesoft
-print("Closing Dewesoft... ", end = "")
-sys.stdout.flush()
-dw = None
-print("done.")
-sys.stdout.flush()
+    dreader = DWDataReader()
+    dreader.open_data_file("first")
+    info = dreader.get_measurement_info()
+    print(info)
+    data = dreader.get_measurements_as_dataframe()
+    print(data)
+
+
+if __name__ == "__main__":
+    run()
