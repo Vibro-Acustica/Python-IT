@@ -4,7 +4,7 @@ import os
 from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, QTabWidget,
                              QLabel, QLineEdit, QPushButton, QGridLayout, QListWidget,
                              QComboBox, QTextBrowser, QMessageBox, QStatusBar, QHBoxLayout, QFrame,
-                             QFileDialog, QProgressBar, QCheckBox, QTabWidget, QListWidgetItem)  # Importação corrigida
+                             QFileDialog, QProgressBar, QCheckBox, QTabWidget, QListWidgetItem, QSizePolicy)  # Importação corrigida
 from PyQt6.QtGui import QFont, QDoubleValidator
 from PyQt6.QtCore import Qt
 
@@ -269,6 +269,7 @@ class QMeasureTab(QWidget):
     def __init__(self):
         super().__init__()
         layout = QVBoxLayout()
+        self.controller = None
 
         measure_control_section = EnhancedSection("Measurements Control")
         measure_control_layout = QVBoxLayout()
@@ -292,6 +293,19 @@ class QMeasureTab(QWidget):
         measure_control_section.content_layout.addLayout(measure_control_layout, 0, 0)
         layout.addWidget(measure_control_section)
         self.setLayout(layout)
+
+        self.start_measurement_button.clicked.connect(self.start_measurement)
+
+    def start_measurement(self):
+        """Informa ao controller que o botão de medição foi pressionado."""
+        print("buttom clicked")
+        selected_item = self.amostras_listbox.currentItem()
+        if selected_item:
+            sample_name = selected_item.text()
+            self.controller.start_measurement(sample_name)
+
+    def set_controller(self, controller):
+        self.controller = controller
 
 class QProcessingTab(QWidget):
     def __init__(self):
@@ -342,6 +356,19 @@ class QProcessingTab(QWidget):
         layout.addWidget(post_processing_section)
         self.setLayout(layout)
 
+class QGraphWindow(QWidget):
+    def __init__(self, pixmap, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Graph Display")
+        self.setGeometry(100, 100, 800, 600)  # Set window size
+
+        layout = QVBoxLayout()
+        self.graph_label = QLabel()
+        self.graph_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.graph_label.setPixmap(pixmap.scaled(self.size(), Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
+
+        layout.addWidget(self.graph_label)
+        self.setLayout(layout)
 
 class QResultsTab(QWidget):
     def __init__(self):
@@ -367,12 +394,14 @@ class QResultsTab(QWidget):
         item3.setCheckState(Qt.CheckState.Checked)
         self.concluded_measurements.addItem(item3)
 
-        results_layout.addWidget(QLabel("Processeds Measurements List"), 0, 0)
+        results_layout.addWidget(QLabel("Processed Measurements List"), 0, 0)
         results_layout.addWidget(self.concluded_measurements, 1, 0)
 
         evaluation_layout = QVBoxLayout()
         evaluation_layout.addWidget(QLabel("Evaluation Metrics"))
 
+        self.original_signal = QCheckBox("Original Signal")
+        self.fft_signal_graph = QCheckBox("Fourier Transform")
         self.absorption_coef_graph = QCheckBox("Absorption Coeficient")
         self.reflection_coef_graph = QCheckBox("Reflection Coeficient")
         self.impedance_ratio_graph = QCheckBox("Impedance Ratio")
@@ -396,6 +425,11 @@ class QResultsTab(QWidget):
         horizontal_layout3.addWidget(self.impedance_graph)
         evaluation_layout.addLayout(horizontal_layout3)
 
+        horizontal_layout4 = QHBoxLayout()
+        horizontal_layout4.addWidget(self.original_signal)
+        horizontal_layout4.addWidget(self.fft_signal_graph)
+        evaluation_layout.addLayout(horizontal_layout4)
+
         evaluation_layout.addWidget(self.propagation_constant_graph)
 
         results_layout.addLayout(evaluation_layout, 1, 2)
@@ -403,15 +437,21 @@ class QResultsTab(QWidget):
         # Adiciona o QLabel para exibir os gráficos
         self.graph_label = QLabel()
         self.graph_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        results_layout.addWidget(self.graph_label, 2, 0, 1, 3)  # Ocupa toda a largura
+        self.graph_label.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)  # Allow expansion
+        self.graph_label.setScaledContents(True)  # Scale pixmap to fit the label
 
         results_section.content_layout.addLayout(results_layout, 0, 0)
         layout.addWidget(results_section)
         self.setLayout(layout)
 
-    def set_graph(self, pixmap):
-        self.graph_label.setPixmap(pixmap)
+    def set_controller(self, controller):
+        self.controller = controller
 
+    def set_graph(self, pixmap):
+        if not pixmap.isNull():
+            self.graph_window = QGraphWindow(pixmap)  # Create new window instance
+            self.graph_window.show()  # Show the new window
+            
 class QTubeSetupTab(QWidget):
     def __init__(self):
         super().__init__()

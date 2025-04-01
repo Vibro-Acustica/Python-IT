@@ -1,7 +1,11 @@
 from PyQt6.QtCore import pyqtSlot
-from PyQt6.QtWidgets import QFileDialog, QMessageBox
+from PyQt6.QtWidgets import QFileDialog, QMessageBox, QListWidgetItem
+from PyQt6.QtCore import Qt
 from DataReader import DWDataReader
-from model import Dewesoft, TubeSetupModel
+from model import Dewesoft, TubeSetupModel, ResultsModel, MeasurementModel, DataStore
+import matplotlib.pyplot as plt
+from PyQt6.QtGui import QPixmap
+from io import BytesIO
 
 class TubeSetupController:
     def __init__(self, model, view):
@@ -24,9 +28,126 @@ class TubeSetupController:
         self.view.mic2_sample.clear()
         self.view.tube_diameter.clear()
 
+
+class ResultsController:
+    def __init__(self, model, view):
+        self.model = model
+        self.view = view
+        self.view.set_controller(self)
+        self.selected_metrics = set()
+
+        # Populate the view with existing processed measurements
+        self.populate_measurements()
+
+        # Connect metric checkboxes to the toggle function
+        self.setup_metric_connections()
+
+    def populate_measurements(self):
+        """Populates the QListWidget with processed measurements from the model."""
+        self.view.concluded_measurements.clear()
+        for measurement in self.model.get_processed_measurements():
+            item = QListWidgetItem(measurement)
+            item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
+            item.setCheckState(Qt.CheckState.Unchecked)
+            self.view.concluded_measurements.addItem(item)
+
+    def setup_metric_connections(self):
+        """Connects checkboxes to toggle_metric function."""
+        self.view.original_signal.stateChanged.connect(lambda state: self.toggle_metric("original_data", state))
+        self.view.fft_signal_graph.stateChanged.connect(lambda state: self.toggle_metric("Fourier Transform", state))
+        self.view.absorption_coef_graph.stateChanged.connect(lambda state: self.toggle_metric("Absorption Coefficient", state))
+        self.view.reflection_coef_graph.stateChanged.connect(lambda state: self.toggle_metric("Reflection Coefficient", state))
+        self.view.impedance_ratio_graph.stateChanged.connect(lambda state: self.toggle_metric("Impedance Ratio", state))
+        self.view.admittance_ratio_graph.stateChanged.connect(lambda state: self.toggle_metric("Admittance Ratio", state))
+        self.view.transfer_function_graph.stateChanged.connect(lambda state: self.toggle_metric("Transfer Function", state))
+        self.view.impedance_graph.stateChanged.connect(lambda state: self.toggle_metric("Impedance", state))
+        self.view.propagation_constant_graph.stateChanged.connect(lambda state: self.toggle_metric("Propagation Constant", state))
+
+    def toggle_metric(self, metric_name, state):
+        """Handles the selection/deselection of evaluation metrics and updates the graph."""
+        print("metric toggled")
+        print(state)
+        if state == Qt.CheckState.Checked.value:
+            self.selected_metrics.add(metric_name)
+            print("checked checkbox")
+            print(self.selected_metrics)
+        else:
+            self.selected_metrics.discard(metric_name)
+        
+        # Redraw graph
+        self.display_graph(metric_name)
+
+    def display_graph(self, name):
+        """Gera e exibe um gráfico para as métricas selecionadas."""
+        print(f"Display Graph called, for metric {name}")
+        if not self.selected_metrics:
+            print(f"Selected metrics")
+            print(self.selected_metrics)
+            self.view.set_graph(QPixmap())  # Limpa o gráfico caso não haja métricas selecionadas
+            return
+
+        # Obter dados correspondentes do modelo
+        fig = self.model.generate_plot(name)
+
+        # Converter gráfico em QPixmap
+        buffer = BytesIO()
+        fig.savefig(buffer, format="png")
+        buffer.seek(0)
+        pixmap = QPixmap()
+        pixmap.loadFromData(buffer.getvalue())
+
+        # Atualizar a view com o gráfico
+        self.view.set_graph(pixmap)
+
+        # Fechar a figura do Matplotlib para liberar memória
+        plt.close(fig)
+
+
+class MeasurementController:
+    def __init__(self, model, view):
+        self.model = model
+        self.view = view
+        self.view.set_controller(self)
+        self.dreader = DWDataReader()
+        self.dewesoft = Dewesoft()
+        self.dewesoft.set_sample_rate(1000) 
+        self.dewesoft.set_dimensions(800, 600)
+        self.dewesoft.load_setup("C:\\Users\\jvv20\\Vibra\\DeweSoftData\\Setups\\test.dxs")
+            
+        # Populate the view with initial data
+        self.populate_samples()
+        self.populate_results()
+
+    def populate_samples(self):
+        """Populates the QListWidget with available samples."""
+        self.view.amostras_listbox.clear()
+        for sample in self.model.get_samples():
+            self.view.amostras_listbox.addItem(sample)
+
+    def populate_results(self):
+        """Populates the QListWidget with measurement results."""
+        self.view.resultados_listbox.clear()
+        for result in self.model.get_measurement_results():
+            self.view.resultados_listbox.addItem(result)
+
+    def start_measurement(self, sample_name: str):
+        """Handles the measurement process."""
+        print("Buttom StartMeasurement Clicked")
+        selected_item = self.view.amostras_listbox.currentItem()
+        if selected_item:
+            sample_name = selected_item.text()
+            self.dewesoft.measure(2, "orginal_signal")
+            self.dewesoft.close()
+            self.dreader.open_data_file("orginal_signal")
+            data = self.dreader.get_measurements_as_dataframe()
+            self.model.add_measurement_result(data,"original_data")
+            self.populate_results()
+
 class MainAppController:
     def __init__(self, main_app_view):
         self.main_app_view = main_app_view
+
+        self.data_store = DataStore()  # Shared storage
         
         # Initialize controllers for each tab and connect them to views
         self.tube_setup_controller = self.create_tube_setup_controller()
@@ -50,12 +171,14 @@ class MainAppController:
         pass
 
     def create_measurements_controller(self):
-        # Create and set up controller for measurements tab
-        pass
+        self.measurement_model = MeasurementModel(self.data_store)
+        self.measurement_view = self.main_app_view.measurements_tab.measure_tab
+        self.measurement_controller = MeasurementController(self.measurement_model, self.measurement_view)
 
     def create_results_controller(self):
-        # Create and set up controller for results tab
-        pass
+        self.results_model = ResultsModel(self.data_store)
+        self.results_view = self.main_app_view.results_tab
+        self.results_controller = ResultsController(self.results_model, self.results_view)
 
     def load_existing_data(self):
         # Load data from models (if necessary)

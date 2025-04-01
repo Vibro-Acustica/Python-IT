@@ -2,6 +2,9 @@ import time
 import sys
 from win32com.client import Dispatch
 from DataReader import DWDataReader
+from scipy.fft import fft, fftfreq
+import numpy as np
+import matplotlib.pyplot as plt
 
 import json
 
@@ -68,6 +71,85 @@ class Dewesoft:
         self.dw = None
         print("done.")
         sys.stdout.flush()
+
+
+class ResultsModel:
+    def __init__(self, data_store):
+        self.data_store = data_store
+        self.processed_measurements = []  # List of processed measurements
+        self.selected_metrics = set()  # Set of selected evaluation metrics
+
+    def get_processed_measurements(self):
+        return self.processed_measurements
+
+    def set_processed_measurements(self, measurements):
+        self.processed_measurements = measurements
+
+    def get_measurement_results(self):
+        return self.data_store.get_results()
+    
+    def get_measurement_by_name(self, name):
+        #print(self.data_store.get_results())
+        return self.data_store.get_result_by_name(name)
+
+    def toggle_metric(self, metric_name, selected):
+        """Adds or removes a metric based on user selection."""
+        if selected:
+            self.selected_metrics.add(metric_name)
+        else:
+            self.selected_metrics.discard(metric_name)
+
+    def get_selected_metrics(self):
+        return list(self.selected_metrics)
+    
+    def generate_plot(self, metric):
+        measurement_data = self.get_measurement_by_name(metric)
+        signal = measurement_data['sine(1)'].values
+        time = measurement_data['time'].values
+        dt = np.mean(np.diff(time))  # Sampling interval
+
+        # Compute FFT
+        N = len(signal)  # Number of samples
+        fft_values = fft(signal)  # Compute FFT
+        freqs = fftfreq(N, d=dt)  # Compute corresponding frequencies
+
+        fig, ax = plt.subplots(figsize=(10, 5))
+        ax.plot(time, signal, label="Original Signal", color="blue")
+        ax.set_xlabel('Time (s)')
+        ax.set_ylabel('Magnitude')
+        ax.set_title('FFT Spectrum (SciPy)')
+        ax.grid()
+
+        return fig  # Return the figure object
+    
+class MeasurementModel:
+    def __init__(self, data_store):
+        self.data_store = data_store
+        self.samples = ["Amostra_x", "Amostra_y"]  # Available samples
+
+    def get_samples(self):
+        return self.samples
+
+    def get_measurement_results(self):
+        return self.data_store.get_results()
+
+    def add_measurement_result(self, result, name):
+        """Adds a measurement result to the results dict."""
+        self.data_store.add_result(result, name)
+
+class DataStore:
+    """Centralized data store for sharing measurement results between models."""
+    def __init__(self):
+        self.measurement_results = {}
+
+    def add_result(self, result, name : str):
+        self.measurement_results[name] = result
+
+    def get_result_by_name(self,name : str):
+        return self.measurement_results[name]
+
+    def get_results(self):
+        return self.measurement_results
 
 def run():
     dewesoft = Dewesoft()
