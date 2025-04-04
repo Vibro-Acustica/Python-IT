@@ -6,6 +6,7 @@ from model import Dewesoft, TubeSetupModel, ResultsModel, MeasurementModel, Data
 import matplotlib.pyplot as plt
 from PyQt6.QtGui import QPixmap
 from io import BytesIO
+from Interface import QResultsTab
 
 class TubeSetupController:
     def __init__(self, model, view):
@@ -30,11 +31,12 @@ class TubeSetupController:
 
 
 class ResultsController:
-    def __init__(self, model, view):
+    def __init__(self, model : ResultsModel, view : QResultsTab):
         self.model = model
         self.view = view
         self.view.set_controller(self)
         self.selected_metrics = set()
+        self.selected_measurement = None
 
         # Populate the view with existing processed measurements
         self.populate_measurements()
@@ -85,9 +87,13 @@ class ResultsController:
             print(self.selected_metrics)
             self.view.set_graph(QPixmap())  # Limpa o gráfico caso não haja métricas selecionadas
             return
+        
+        self.selected_measurement = self.view.concluded_measurements.selectedItems()
+        if len(self.selected_measurement) == 0:
+            self.selected_measurement = "TestFundo"
 
         # Obter dados correspondentes do modelo
-        fig = self.model.generate_plot(name)
+        fig = self.model.generate_plot(name,self.selected_measurement)
 
         # Converter gráfico em QPixmap
         buffer = BytesIO()
@@ -104,7 +110,7 @@ class ResultsController:
 
 
 class MeasurementController:
-    def __init__(self, model, view):
+    def __init__(self, model : MeasurementModel, view):
         self.model = model
         self.view = view
         self.view.set_controller(self)
@@ -136,11 +142,12 @@ class MeasurementController:
         selected_item = self.view.amostras_listbox.currentItem()
         if selected_item:
             sample_name = selected_item.text()
-            self.dewesoft.measure(2, "orginal_signal")
-            self.dewesoft.close()
-            self.dreader.open_data_file("orginal_signal")
+            #self.dewesoft.measure(2, "orginal_signal")
+            #self.dewesoft.close()
+            self.dreader.open_data_file("TestFundo")
             data = self.dreader.get_measurements_as_dataframe()
-            self.model.add_measurement_result(data,"original_data")
+            print("measurements read")
+            self.model.add_measurement_result(data,"TestFundo")
             self.populate_results()
 
 class MainAppController:

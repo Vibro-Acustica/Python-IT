@@ -5,7 +5,7 @@ from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, QT
                              QLabel, QLineEdit, QPushButton, QGridLayout, QListWidget,
                              QComboBox, QTextBrowser, QMessageBox, QStatusBar, QHBoxLayout, QFrame,
                              QFileDialog, QProgressBar, QCheckBox, QTabWidget, QListWidgetItem, QSizePolicy)  # Importação corrigida
-from PyQt6.QtGui import QFont, QDoubleValidator
+from PyQt6.QtGui import QFont, QDoubleValidator, QColor
 from PyQt6.QtCore import Qt
 
 class PersistenceManager:
@@ -379,9 +379,12 @@ class QResultsTab(QWidget):
         results_layout = QGridLayout()
 
         self.concluded_measurements = QListWidget()
+        self.concluded_measurements.setStyleSheet("color: black;")
+
         item1 = QListWidgetItem("Measurement-1")
         item1.setFlags(item1.flags() | Qt.ItemFlag.ItemIsUserCheckable)
         item1.setCheckState(Qt.CheckState.Unchecked)
+        item1.setForeground(QColor("black"))
         self.concluded_measurements.addItem(item1)
 
         item2 = QListWidgetItem("Measurement-2")

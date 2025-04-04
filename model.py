@@ -5,6 +5,7 @@ from DataReader import DWDataReader
 from scipy.fft import fft, fftfreq
 import numpy as np
 import matplotlib.pyplot as plt
+from typing import Type
 
 import json
 
@@ -45,6 +46,9 @@ class Dewesoft:
         self.dw.Enabled = 1
         self.dw.Visible = 1
 
+    def __del__(self):
+        self.close()
+
     def set_sample_rate(self, sample_rate: int) -> None:
         self.dw.MeasureSampleRate = sample_rate
 
@@ -72,9 +76,22 @@ class Dewesoft:
         print("done.")
         sys.stdout.flush()
 
+class DataStore:
+    """Centralized data store for sharing measurement results between models."""
+    def __init__(self):
+        self.measurement_results = {}
+
+    def add_result(self, result, name : str):
+        self.measurement_results[name] = result
+
+    def get_result_by_name(self,name : str, metric :str) -> np.array:
+        return self.measurement_results[name]
+
+    def get_results(self):
+        return self.measurement_results
 
 class ResultsModel:
-    def __init__(self, data_store):
+    def __init__(self, data_store : DataStore):
         self.data_store = data_store
         self.processed_measurements = []  # List of processed measurements
         self.selected_metrics = set()  # Set of selected evaluation metrics
@@ -88,9 +105,9 @@ class ResultsModel:
     def get_measurement_results(self):
         return self.data_store.get_results()
     
-    def get_measurement_by_name(self, name):
+    def get_measurement_by_name(self, name, metric) -> np.array :
         #print(self.data_store.get_results())
-        return self.data_store.get_result_by_name(name)
+        return self.data_store.get_result_by_name(name, metric)
 
     def toggle_metric(self, metric_name, selected):
         """Adds or removes a metric based on user selection."""
@@ -102,28 +119,31 @@ class ResultsModel:
     def get_selected_metrics(self):
         return list(self.selected_metrics)
     
-    def generate_plot(self, metric):
-        measurement_data = self.get_measurement_by_name(metric)
-        signal = measurement_data['sine(1)'].values
-        time = measurement_data['time'].values
+    def generate_plot(self, metric, measument):
+        measurement_data = self.get_measurement_by_name(measument, metric)
+        #print(measurement_data)
+        signal_1 = measurement_data['AI A-1']
+        signal_2 = measurement_data['AI A-2']
+        time = measurement_data['Time']
         dt = np.mean(np.diff(time))  # Sampling interval
 
         # Compute FFT
-        N = len(signal)  # Number of samples
-        fft_values = fft(signal)  # Compute FFT
+        N = len(signal_1)  # Number of samples
+        fft_values = fft(signal_1)  # Compute FFT
         freqs = fftfreq(N, d=dt)  # Compute corresponding frequencies
 
         fig, ax = plt.subplots(figsize=(10, 5))
-        ax.plot(time, signal, label="Original Signal", color="blue")
+        ax.plot(time, signal_1, label="Original Signal", color="blue")
+        ax.plot(time, signal_2, label="Signal 2 (AI A-2)", color="orange")
         ax.set_xlabel('Time (s)')
         ax.set_ylabel('Magnitude')
-        ax.set_title('FFT Spectrum (SciPy)')
+        ax.set_title('Original Signal')
         ax.grid()
 
         return fig  # Return the figure object
     
 class MeasurementModel:
-    def __init__(self, data_store):
+    def __init__(self, data_store : DataStore):
         self.data_store = data_store
         self.samples = ["Amostra_x", "Amostra_y"]  # Available samples
 
@@ -137,37 +157,14 @@ class MeasurementModel:
         """Adds a measurement result to the results dict."""
         self.data_store.add_result(result, name)
 
-class DataStore:
-    """Centralized data store for sharing measurement results between models."""
-    def __init__(self):
-        self.measurement_results = {}
-
-    def add_result(self, result, name : str):
-        self.measurement_results[name] = result
-
-    def get_result_by_name(self,name : str):
-        return self.measurement_results[name]
-
-    def get_results(self):
-        return self.measurement_results
-
 def run():
-    dewesoft = Dewesoft()
-    dewesoft.set_sample_rate(1000) 
-    dewesoft.set_dimensions(800, 600)
-    dewesoft.load_setup("C:\\Users\\jvv20\\Vibra\\DeweSoftData\\Setups\\test.dxs")
-    
-    dewesoft.measure(2, "first")
-    #dewesoft.measure(2, "second")
-    
-    dewesoft.close()
-
     dreader = DWDataReader()
-    dreader.open_data_file("first")
+    dreader.open_data_file("TestFundo")
     info = dreader.get_measurement_info()
-    print(info)
+    print(info.sample_rate)
     data = dreader.get_measurements_as_dataframe()
     print(data)
+
 
 
 if __name__ == "__main__":
