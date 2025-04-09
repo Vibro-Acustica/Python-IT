@@ -14,8 +14,12 @@ class DWDataReader:
         self.add_reader()
         self.ensure_everything_is_ok()
 
+        self.sample_rate = 0
+        self.duration = 0
+
     def __del__(self):
         self.close()
+        self.finish()
 
 
     def raise_error(self, message):
@@ -33,13 +37,16 @@ class DWDataReader:
         self.file_info = DWFileInfo(0, 0, 0)
         if self.lib.DWOpenDataFile(file_name_c, c_void_p(addressof(self.file_info))) != DWStatus.DWSTAT_OK.value:
             self.raise_error("DWOpenDataFile() failed")
+        
+        self.get_measurement_info()
 
     def get_measurement_info(self) -> DWMeasurementInfo: 
         measurement_info = DWMeasurementInfo(0, 0, 0, 0)
         if self.lib.DWGetMeasurementInfo(c_void_p(addressof(measurement_info))) != DWStatus.DWSTAT_OK.value:
             self.raise_error("DWGetMeasurementInfo() failed")
 
-        return measurement_info
+        self.sample_rate = measurement_info.sample_rate
+        self.duration = measurement_info.duration
 
     def get_channel_list(self) -> tuple[list, int]:
         print("called get channel list")
@@ -168,6 +175,10 @@ class DWDataReader:
             if "Time" not in return_data.keys():
                 return_data["Time"] = np.array([p_time_stamp[j] for j in range(sample_cnt)])
                 
+            if "SampleRate" and "Duration" not in return_data.keys():
+                return_data["SampleRate"] = self.sample_rate
+                return_data["Duration"] = self.duration
+
             # diplay data
             # Create a dictionary to hold data temporarily
             channel_data = {}
@@ -193,6 +204,8 @@ class DWDataReader:
         print("close called")
         if self.lib.DWCloseDataFile() != DWStatus.DWSTAT_OK.value:
             self.raise_error("DWCloseDataFile() failed")
+
+    def finish(self):
         if self.lib.DWDeInit() != DWStatus.DWSTAT_OK.value:
             self.raise_error("DWDeInit() failed")
         _ctypes.FreeLibrary(self.lib._handle)

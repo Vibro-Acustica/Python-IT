@@ -90,7 +90,7 @@ class ResultsController:
         
         self.selected_measurement = self.view.concluded_measurements.selectedItems()
         if len(self.selected_measurement) == 0:
-            self.selected_measurement = "TestFundo"
+            self.selected_measurement = "TestAbsorcao_Medicao"
 
         # Obter dados correspondentes do modelo
         fig = self.model.generate_plot(name,self.selected_measurement)
@@ -144,10 +144,19 @@ class MeasurementController:
             sample_name = selected_item.text()
             #self.dewesoft.measure(2, "orginal_signal")
             #self.dewesoft.close()
-            self.dreader.open_data_file("TestFundo")
+
+            self.dreader.open_data_file("TestAbsorcao_Medicao")
             data = self.dreader.get_measurements_as_dataframe()
             print("measurements read")
-            self.model.add_measurement_result(data,"TestFundo")
+            self.model.add_measurement_result(data,"TestAbsorcao_Medicao")
+            self.dreader.close()
+
+            self.dreader.open_data_file("TestAbsorcao_MicTrocado")
+            data = self.dreader.get_measurements_as_dataframe()
+            print("measurements read")
+            self.model.add_measurement_result(data,"TestAbsorcao_MicTrocado")
+            self.dreader.close()
+
             self.populate_results()
 
 class MainAppController:
