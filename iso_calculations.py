@@ -1,14 +1,14 @@
 import numpy as np
 import matplotlib.pyplot as plt
-from scipy import signal
+from scipy.signal import stft, get_window
 
 class CalculationISO:
     def __init__(self):
         self
 
-    def process_time_domain_data(self, mic1_signal, mic2_signal, sample_rate, window_type='hann'):
+    def process_time_domain_data(self, mic1_signal, mic2_signal, sample_rate, window_type='hann', block_size=10000, overlap_ratio=0.75):
         """
-        Process time-domain signals from two microphones to get the complex transfer function
+        Process time-domain signals from two microphones using STFT to compute the transfer function (H1 method)
         
         Parameters:
         -----------
@@ -19,57 +19,79 @@ class CalculationISO:
         sample_rate : float
             Sampling rate in Hz
         window_type : str
-            Window type for spectral analysis (default: 'hann')
-            
+            Window type for STFT (default: 'hann')
+        block_size : int
+            Size of each STFT window (in samples)
+        overlap_ratio : float
+            Overlap between blocks (default: 0.75 → 75%)
+                
         Returns:
         --------
         frequencies : array
             Frequency array in Hz
         H12 : array
-            Complex transfer function between microphone positions
+            Complex transfer function H12(f) = mic2(f) / mic1(f)
         """
-
-        #print("mic1_signal shape:", mic1_signal)
-        #print("mic2_signal shape:", mic2_signal)
-
+        
+        # Ensure signals are flattened and the same length
         mic1_signal = np.asarray(mic1_signal).flatten()
         mic2_signal = np.asarray(mic2_signal).flatten()
-
-        # Ensure signals are the same length
-        min_length = min(len(mic1_signal), len(mic2_signal))
-        mic1_signal = mic1_signal[:min_length]
-        mic2_signal = mic2_signal[:min_length]
+        min_len = min(len(mic1_signal), len(mic2_signal))
+        mic1_signal = mic1_signal[:min_len]
+        mic2_signal = mic2_signal[:min_len]
         
-        # Create window function
-        window = signal.get_window(window_type, min_length)
+        # Calculate STFT using similar parameters as the working function
+        window = np.hanning(block_size)
+        noverlap = int(block_size * overlap_ratio)
         
-        # Apply windowing to reduce spectral leakage
-        mic1_windowed = mic1_signal * window
-        mic2_windowed = mic2_signal * window
+        # Calculate time and frequency parameters for consistency
+        dt = 1.0 / sample_rate
+        blockTime = block_size * dt
+        df = 1.0 / blockTime
+        nf = int(np.floor(block_size * 0.5)) + 1
+        freq = np.linspace(0, sample_rate * 0.5, nf)
         
-        # Calculate FFT
-        mic1_fft = np.fft.rfft(mic1_windowed)
-        mic2_fft = np.fft.rfft(mic2_windowed)
+        # Perform STFT
+        f, t, Z1 = stft(mic1_signal, fs=sample_rate, window=window, nperseg=block_size, 
+                        noverlap=noverlap, boundary=None, return_onesided=True)
+        _, _, Z2 = stft(mic2_signal, fs=sample_rate, window=window, nperseg=block_size, 
+                        noverlap=noverlap, boundary=None, return_onesided=True)
         
-        # Calculate frequencies corresponding to FFT bins
-        frequencies = np.fft.rfftfreq(min_length, d=1/sample_rate)
+        # Calculate averaged spectral components for both signals
+        Z1_real_avg = np.mean(Z1.real, axis=1)
+        Z1_imag_avg = np.mean(Z1.imag, axis=1)
+        Z2_real_avg = np.mean(Z2.real, axis=1)
+        Z2_imag_avg = np.mean(Z2.imag, axis=1)
         
-        # Calculate the complex transfer function H12 = FFT(mic2) / FFT(mic1)
-        # Use cross-spectrum method for better noise immunity
-        G12 = np.conj(mic1_fft) * mic2_fft  # Cross spectrum
-        G11 = np.conj(mic1_fft) * mic1_fft  # Auto spectrum of mic1
+        # Calculate H12 using the same method as the working function
+        H12_real = np.zeros(nf)
+        H12_imag = np.zeros(nf)
+        H12_mag = np.zeros(nf)
+        H12_phase = np.zeros(nf)
         
-        # Apply smoothing (optional)
-        G12 = self.smooth_spectrum(G12, window_size=5)
-        G11 = self.smooth_spectrum(G11, window_size=5)
+        for i in range(0, len(f)):
+            x2 = Z1_real_avg[i]
+            y2 = Z1_imag_avg[i]
+            x1 = Z2_real_avg[i]
+            y1 = Z2_imag_avg[i]
+            
+            # Avoid division by zero
+            denominator = (x2*x2 + y2*y2)
+            if denominator > 1e-10:  # Small threshold to prevent division by zero
+                H12_real[i] = (x1*x2 + y1*y2) / denominator
+                H12_imag[i] = (y1*x2 - x1*y2) / denominator
+                H12_mag[i] = np.sqrt(H12_real[i]**2 + H12_imag[i]**2)
+                H12_phase[i] = np.arctan2(H12_imag[i], H12_real[i])
+            else:
+                H12_real[i] = 0
+                H12_imag[i] = 0
+                H12_mag[i] = 0
+                H12_phase[i] = 0
         
-        # Calculate H12 using the H1 estimator (minimizes noise in reference signal)
-        H12 = G12 / G11
+        # Create complex H12
+        H12 = H12_real + 1j * H12_imag
         
-        # Filter out frequency ranges outside the valid measurement range
-        # These ranges are determined by the tube dimensions and microphone spacing
-        
-        return frequencies, H12
+        return freq, H12, H12_mag, H12_phase
 
     def smooth_spectrum(self, spectrum, window_size=5):
         """Apply moving average smoothing to a spectrum"""
@@ -113,53 +135,47 @@ class CalculationISO:
         # Return the most restrictive limits
         f_min = min(f_max_tube, f_max_spacing, f_nyquist)
         
-        return f_min, f_max
+        return f_max, f_min
 
-    def calculate_absorption_coefficient(self, frequencies, H12, mic_spacing, sample_distance):
+    def calculate_absorption_coeficent(self, freq, H, l, s, c=343):
         """
-        Calculate sound absorption coefficient according to ISO 10534-2
-        
-        Parameters:
-        -----------
-        frequencies : array
-            Frequency array in Hz
-        H12 : array
-            Complex transfer function between microphone positions
-        mic_spacing : float
-            Distance between microphones in meters
-        sample_distance : float
-            Distance from sample to nearest microphone in meters
-            
-        Returns:
-        --------
-        alpha : array
-            Absorption coefficient for each frequency
+        Calcula o coeficiente de absorção acústica a partir de H (complexo).
+
+        Parâmetros:
+        - freq: array de frequências (Hz)
+        - H: array de valores complexos H = G12 / G11
+        - l: distância da amostra até o centro do microfone mais próximo (em metros)
+        - s: distância entre os centros dos microfones (em metros)
+        - c: velocidade do som (m/s), padrão: 343 m/s
+
+        Retorna:
+        - alpha: array com o coeficiente de absorção
         """
-        # Speed of sound in air (m/s) at 20°C
-        c = 343.0
+        freq = np.asarray(freq)
+        H = np.asarray(H)
         
-        # Angular frequency
-        omega = 2 * np.pi * frequencies
-        
-        # Wave number
-        k = omega / c
-        
-        # Calculate the reflection factor
-        H_I = np.exp(-1j * k * mic_spacing)
-        H_R = np.exp(1j * k * mic_spacing)
-        
-        # Calculate reflection coefficient
-        R = ((H12 - H_I) / (H_R - H12)) * np.exp(2j * k * sample_distance)
-        
-        # Calculate absorption coefficient
-        alpha = 1 - np.abs(R)**2
+        Hr = H.real
+        Hi = H.imag
+        Hr2 = Hr**2
+        Hi2 = Hi**2
+
+        k = 2 * np.pi * freq / c
+        Hr2 = Hr**2
+        Hi2 = Hi**2
+
+        D = 1 + Hr2 + Hi2 - 2 * (Hr * np.cos(k * s) + Hi * np.sin(k * s))
+
+        Rr = (2 * Hr * np.cos(k * (2 * l + s)) - np.cos(2 * k * l) - (Hr2 + Hi2) * np.cos(2 * k * (l + s))) / D
+        Ri = (2 * Hr * np.sin(k * (2 * l + s)) - np.sin(2 * k * l) - (Hr2 + Hi2) * np.sin(2 * k * (l + s))) / D
+
+        alpha = 1 - Rr**2 - Ri**2
         
         # Ensure values are within physical limits (sometimes numerical issues can cause values >1)
-        alpha = np.clip(alpha, 0, 1)
+        alpha = np.clip(alpha, -1, 1)
         
         return alpha
 
-    def plot_results(self, frequencies, alpha, valid_freq_range):
+    def plot_results(self, frequencies, alpha, valid_freq_range=None):
         """
         Plot the absorption coefficient vs frequency with valid range highlighted
         
@@ -199,7 +215,6 @@ class CalculationISO:
             ax.axvline(x=f_min, color='k', linestyle='--', alpha=0.5)
             ax.axvline(x=f_max, color='k', linestyle='--', alpha=0.5)
                     
-        ax.set_xscale('log')
         ax.grid(True, which="both", ls="--")
         ax.set_xlabel('Frequency (Hz)')
         ax.set_ylabel('Absorption Coefficient')
@@ -211,13 +226,31 @@ class CalculationISO:
         else:
             ax.set_xlim(min(frequencies), max(frequencies))
             
-        ax.set_ylim(0, 1.1)
-        ax.set_xlim(0.1, 10000)
+        ax.set_ylim(-1, 1.1)
+        ax.set_xlim(0.1, 2000)
         ax.legend()
         
         fig.tight_layout()
         
         return fig, ax
+    
+    def plot_calibration_function(self, frequencies, calibration_function):
+        fig, ax = plt.subplots(figsize=(12, 8))
+
+        ax.plot(frequencies, calibration_function,label='calibration function')
+
+        ax.grid(True, which="both", ls="--")
+        ax.set_xlabel('Frequency (Hz)')
+        ax.set_ylabel('H')
+        ax.set_title('H vs Frequency')
+            
+        ax.set_xlim(0.1, 2000)
+        ax.legend()
+        
+        fig.tight_layout()
+        
+        return fig, ax
+
 
     def process_and_analyze_measurements(self, mic1_signal, mic2_signal, sample_rate, tube_diameter, 
                                         mic_spacing, sample_distance):

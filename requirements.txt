@@ -2,3 +2,5 @@ pywin32
 sys
 pyQt6
 pandas
+docx
+numpy

@@ -4,7 +4,7 @@ import os
 from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, QTabWidget,
                              QLabel, QLineEdit, QPushButton, QGridLayout, QListWidget,
                              QComboBox, QTextBrowser, QMessageBox, QStatusBar, QHBoxLayout, QFrame,
-                             QFileDialog, QProgressBar, QCheckBox, QTabWidget, QListWidgetItem, QSizePolicy)  # Importação corrigida
+                             QFileDialog, QProgressBar, QCheckBox, QTabWidget, QListWidgetItem, QSizePolicy, QGroupBox, QAbstractItemView)  # Importação corrigida
 from PyQt6.QtGui import QFont, QDoubleValidator, QColor
 from PyQt6.QtCore import Qt
 
@@ -189,14 +189,16 @@ class MainApp(QMainWindow):
         self.documentation_tab = self.create_documentation_tab()
         self.measurements_tab = self.create_measurements_tab()
         self.results_tab = QResultsTab()
+        self.export_tab = QReportViewTab()
         
         self.tabs.addTab(self.tube_setup_tab, "Tube Setup")
         self.tabs.addTab(self.samples_tab, "Samples")
         self.tabs.addTab(self.test_conditions_tab, "Test Conditions")
         self.tabs.addTab(self.warnings_tab, "Warnings")
-        self.tabs.addTab(self.documentation_tab, "Documentation")
         self.tabs.addTab(self.measurements_tab, "Measuments")
         self.tabs.addTab(self.results_tab, "Results")
+        self.tabs.addTab(self.export_tab, "Report")
+        self.tabs.addTab(self.documentation_tab, "Documentation")
         
         main_layout.addWidget(self.tabs)
         main_widget.setLayout(main_layout)
@@ -248,6 +250,31 @@ class MainApp(QMainWindow):
     def create_measurements_tab(self):
         tab = QMeasurementsTab()
         return tab
+    
+class QReportViewTab(QWidget):
+    def __init__(self):
+        super().__init__()
+        self.controller = None
+
+        layout = QVBoxLayout()
+        self.preview_button = QPushButton("Preview Report")
+        self.export_button = QPushButton("Export Report")
+        self.status_label = QLabel("Ready")
+
+        layout.addWidget(self.preview_button)
+        layout.addWidget(self.export_button)
+        layout.addWidget(self.status_label)
+        self.setLayout(layout)
+
+        self.preview_button.clicked.connect(lambda: self.controller.handle_preview())
+        self.export_button.clicked.connect(lambda: self.controller.handle_export())
+
+    def set_controller(self, controller):
+        self.controller = controller
+
+    def update_status(self, message):
+        self.status_label.setText(message)
+        QMessageBox.information(self, "Report", message)
     
 class QMeasurementsTab(QWidget):
     def __init__(self):
@@ -313,48 +340,87 @@ class QProcessingTab(QWidget):
         layout = QVBoxLayout()
 
         post_processing_section = EnhancedSection("Post Processing")
-        post_processing_layout = QGridLayout()
-
+        
+        # Main horizontal layout for better space utilization
+        main_layout = QHBoxLayout()
+        
+        # Left panel - Measurements list
+        left_panel = QVBoxLayout()
+        left_panel.addWidget(QLabel("Measurements List"))
+        
         self.measurements_checklist = QListWidget()
-        self.measurements_checklist.setStyleSheet("color: #333;")
-
-        item1 = QListWidgetItem("Test")
-        item1.setFlags(item1.flags() | Qt.ItemFlag.ItemIsUserCheckable)
-        item1.setCheckState(Qt.CheckState.Unchecked)
-        self.measurements_checklist.addItem(item1)
-
-        item2 = QListWidgetItem("Test")
-        item2.setFlags(item2.flags() | Qt.ItemFlag.ItemIsUserCheckable)
-        item2.setCheckState(Qt.CheckState.Checked)
-        self.measurements_checklist.addItem(item2)
-
-        item3 = QListWidgetItem("123")
-        item3.setFlags(item3.flags() | Qt.ItemFlag.ItemIsUserCheckable)
-        item3.setCheckState(Qt.CheckState.Checked)
-        self.measurements_checklist.addItem(item3)
-
-        post_processing_layout.addWidget(QLabel("Measurements List"), 0, 0)
-        post_processing_layout.addWidget(self.measurements_checklist, 1, 0)
-
+        self.measurements_checklist.setStyleSheet("color: #333; background-color: white; border: 1px solid #ccc;")
+        self.measurements_checklist.setMinimumHeight(200)
+        self.measurements_checklist.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
+        left_panel.addWidget(self.measurements_checklist)
+        
+        # Select/Deselect All buttons
+        buttons_layout = QHBoxLayout()
+        self.select_all_button = QPushButton("Select All")
+        self.deselect_all_button = QPushButton("Deselect All")
+        buttons_layout.addWidget(self.select_all_button)
+        buttons_layout.addWidget(self.deselect_all_button)
+        left_panel.addLayout(buttons_layout)
+        
+        # Right panel - Operations and preview
+        right_panel = QVBoxLayout()
+        
+        # Operation selection group
+        operations_group = QGroupBox("Processing Operations")
         operations_layout = QVBoxLayout()
-        operations_layout.addWidget(QLabel("Operations"))
-
-        self.avarege_checkbox = QCheckBox("Avarege")
-        self.combine_checkbox = QCheckBox("Combine")
-        self.extract_checkbox = QCheckBox("Extract third-octave")
-
-        operations_layout.addWidget(self.avarege_checkbox)
+        
+        # Add checkboxes for operations with descriptions
+        self.average_checkbox = QCheckBox("Average selected measurements")
+        self.combine_checkbox = QCheckBox("Combine selected measurements")
+        self.extract_checkbox = QCheckBox("Extract third-octave bands")
+        
+        operations_layout.addWidget(self.average_checkbox)
         operations_layout.addWidget(self.combine_checkbox)
         operations_layout.addWidget(self.extract_checkbox)
-
-        self.compute_button = QPushButton("Compute")
+        
+        # Add options panel that changes based on selected operation
+        self.options_panel = QWidget()
+        self.options_layout = QVBoxLayout()
+        self.options_panel.setLayout(self.options_layout)
+        self.options_panel.setVisible(False)
+        operations_layout.addWidget(self.options_panel)
+        
+        # Add spacer
+        operations_layout.addStretch(1)
+        
+        # Add compute button with styling
+        self.compute_button = QPushButton("Compute Processing")
+        self.compute_button.setStyleSheet("""
+            QPushButton {
+                background-color: #4a86e8;
+                color: white;
+                padding: 8px;
+                border-radius: 4px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #3a76d8;
+            }
+            QPushButton:pressed {
+                background-color: #2a66c8;
+            }
+        """)
         operations_layout.addWidget(self.compute_button)
-
-        post_processing_layout.addLayout(operations_layout, 1, 2)
-
-        post_processing_section.content_layout.addLayout(post_processing_layout, 0, 0)
+        
+        operations_group.setLayout(operations_layout)
+        right_panel.addWidget(operations_group)
+        
+        # Add the panels to the main layout
+        main_layout.addLayout(left_panel, 2)
+        main_layout.addLayout(right_panel, 3)
+        
+        post_processing_section.content_layout.addLayout(main_layout, 0, 0)
         layout.addWidget(post_processing_section)
         self.setLayout(layout)
+        
+    def set_controller(self, controller):
+        """Store the controller reference and connect signals."""
+        self.controller = controller
 
 class QGraphWindow(QWidget):
     def __init__(self, pixmap, parent=None):
@@ -375,36 +441,45 @@ class QResultsTab(QWidget):
         super().__init__()
         layout = QVBoxLayout()
 
+        # Main section
         results_section = EnhancedSection("Post Processed Results")
-        results_layout = QGridLayout()
-
+        
+        # Use a horizontal split for better space utilization
+        main_layout = QHBoxLayout()
+        
+        # Left side - Measurements list and controls
+        left_panel = QVBoxLayout()
+        
+        # Measurements list with label
+        measurement_panel = QVBoxLayout()
+        measurement_panel.addWidget(QLabel("Processed Measurements List"))
+        
         self.concluded_measurements = QListWidget()
-        self.concluded_measurements.setStyleSheet("color: black;")
-
-        item1 = QListWidgetItem("Measurement-1")
-        item1.setFlags(item1.flags() | Qt.ItemFlag.ItemIsUserCheckable)
-        item1.setCheckState(Qt.CheckState.Unchecked)
-        item1.setForeground(QColor("black"))
-        self.concluded_measurements.addItem(item1)
-
-        item2 = QListWidgetItem("Measurement-2")
-        item2.setFlags(item2.flags() | Qt.ItemFlag.ItemIsUserCheckable)
-        item2.setCheckState(Qt.CheckState.Checked)
-        self.concluded_measurements.addItem(item2)
-
-        item3 = QListWidgetItem("Measurement-3")
-        item3.setFlags(item3.flags() | Qt.ItemFlag.ItemIsUserCheckable)
-        item3.setCheckState(Qt.CheckState.Checked)
-        self.concluded_measurements.addItem(item3)
-
-        results_layout.addWidget(QLabel("Processed Measurements List"), 0, 0)
-        results_layout.addWidget(self.concluded_measurements, 1, 0)
-
-        evaluation_layout = QVBoxLayout()
-        evaluation_layout.addWidget(QLabel("Evaluation Metrics"))
-
+        self.concluded_measurements.setMinimumHeight(200)
+        self.concluded_measurements.setStyleSheet("background-color: white; color: black; border: 1px solid #ccc;")
+        
+        measurement_panel.addWidget(self.concluded_measurements)
+        left_panel.addLayout(measurement_panel)
+        
+        # Right side - Visualization area
+        right_panel = QVBoxLayout()
+        
+        # Graph display area
+        self.graph_label = QLabel()
+        self.graph_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.graph_label.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        self.graph_label.setStyleSheet("background-color: #f8f8f8; border: 1px solid #ddd;")
+        self.graph_label.setMinimumHeight(300)  # Set minimum height for better visibility
+        right_panel.addWidget(self.graph_label)
+        
+        # Evaluation metrics section with traditional checkbox layout to maintain controller compatibility
+        metrics_box = QGroupBox("Evaluation Metrics")
+        metrics_layout = QGridLayout()
+        
+        # Create all the original checkboxes with the same names for controller compatibility
         self.original_signal = QCheckBox("Original Signal")
         self.fft_signal_graph = QCheckBox("Fourier Transform")
+        self.calibration_graph = QCheckBox("Calibration Function")
         self.absorption_coef_graph = QCheckBox("Absorption Coeficient")
         self.reflection_coef_graph = QCheckBox("Reflection Coeficient")
         self.impedance_ratio_graph = QCheckBox("Impedance Ratio")
@@ -412,38 +487,28 @@ class QResultsTab(QWidget):
         self.transfer_function_graph = QCheckBox("Transfer Function")
         self.impedance_graph = QCheckBox("Impedance")
         self.propagation_constant_graph = QCheckBox("Propagation Constant")
-
-        horizontal_layout1 = QHBoxLayout()
-        horizontal_layout1.addWidget(self.absorption_coef_graph)
-        horizontal_layout1.addWidget(self.reflection_coef_graph)
-        evaluation_layout.addLayout(horizontal_layout1)
-
-        horizontal_layout2 = QHBoxLayout()
-        horizontal_layout2.addWidget(self.impedance_ratio_graph)
-        horizontal_layout2.addWidget(self.admittance_ratio_graph)
-        evaluation_layout.addLayout(horizontal_layout2)
-
-        horizontal_layout3 = QHBoxLayout()
-        horizontal_layout3.addWidget(self.transfer_function_graph)
-        horizontal_layout3.addWidget(self.impedance_graph)
-        evaluation_layout.addLayout(horizontal_layout3)
-
-        horizontal_layout4 = QHBoxLayout()
-        horizontal_layout4.addWidget(self.original_signal)
-        horizontal_layout4.addWidget(self.fft_signal_graph)
-        evaluation_layout.addLayout(horizontal_layout4)
-
-        evaluation_layout.addWidget(self.propagation_constant_graph)
-
-        results_layout.addLayout(evaluation_layout, 1, 2)
-
-        # Adiciona o QLabel para exibir os gráficos
-        self.graph_label = QLabel()
-        self.graph_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.graph_label.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)  # Allow expansion
-        self.graph_label.setScaledContents(True)  # Scale pixmap to fit the label
-
-        results_section.content_layout.addLayout(results_layout, 0, 0)
+        
+        # Add checkboxes to grid layout in pairs
+        metrics_layout.addWidget(self.absorption_coef_graph, 0, 0)
+        metrics_layout.addWidget(self.reflection_coef_graph, 0, 1)
+        metrics_layout.addWidget(self.impedance_ratio_graph, 1, 0)
+        metrics_layout.addWidget(self.admittance_ratio_graph, 1, 1)
+        metrics_layout.addWidget(self.transfer_function_graph, 2, 0)
+        metrics_layout.addWidget(self.impedance_graph, 2, 1)
+        metrics_layout.addWidget(self.original_signal, 3, 0)
+        metrics_layout.addWidget(self.fft_signal_graph, 3, 1)
+        metrics_layout.addWidget(self.calibration_graph, 4, 0)
+        metrics_layout.addWidget(self.propagation_constant_graph, 4, 1)
+        
+        metrics_box.setLayout(metrics_layout)
+        right_panel.addWidget(metrics_box)
+        
+        # Add the panels to the main layout with weight ratio
+        main_layout.addLayout(left_panel, 1)
+        main_layout.addLayout(right_panel, 3)
+        
+        # Add the main layout to the content section with proper parameters
+        results_section.content_layout.addLayout(main_layout, 0, 0)
         layout.addWidget(results_section)
         self.setLayout(layout)
 
