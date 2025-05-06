@@ -647,9 +647,9 @@ class QTestConditionsTab(QWidget):
         layout.addWidget(humidity_section)
         
         # Save Button
-        save_button = QPushButton("Save Test Conditions")
+        self.save_button = QPushButton("Save Test Conditions")
         #save_button.clicked.connect(self.save_conditions)
-        layout.addWidget(save_button)
+        layout.addWidget(self.save_button)
         
         self.setLayout(layout)
     

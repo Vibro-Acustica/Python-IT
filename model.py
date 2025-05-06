@@ -59,6 +59,8 @@ class DataStore:
         self.measurement_results = {}
         self.post_processed_results = {}
         self.absorption_coef = {}
+        self.samples = {}
+        self.warnings = {}
 
     def add_result(self, result, name : str):
         self.measurement_results[name] = result
@@ -100,6 +102,20 @@ class DataStore:
 
     def get_test_conditions(self):
         return self.test_conditions
+    
+    def add_sample(self, sample, sample_name):
+        self.samples[sample_name] = sample
+
+    def get_sample(self, sample_name):
+        return self.samples[sample_name]
+    
+    def add_warnings(self, snr, auto_spec, calib):
+        self.warnings["snr"] = snr
+        self.warnings["auto_spec"] = auto_spec
+        self.warnings["calib"] = calib
+
+    def get_warnings(self):
+        return self.warnings
     
 class TubeSetupModel:
     def __init__(self, data_store : DataStore):
@@ -480,6 +496,21 @@ class MeasurementModel:
     def add_measurement_result(self, result, name):
         """Adds a measurement result to the results dict."""
         self.data_store.add_result(result, name)
+
+class SamplesModel:
+    def __init__(self,data_store : DataStore):
+        self.data_store = data_store
+
+    def save_sample(self, sample):
+        sample_name = sample["sample_name"]
+        self.data_store.add_sample(sample=sample, sample_name=sample_name)
+
+class WarningsModel:
+    def __init__(self, data_store: DataStore):
+        self.data_store = data_store
+        
+    def save_warning_settings(self, snr, auto_spec, calib):
+        self.data_store
 
 class ProcessingModel:
     def __init__(self, data_store: DataStore):

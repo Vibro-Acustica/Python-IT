@@ -2,7 +2,7 @@ from PyQt6.QtCore import pyqtSlot
 from PyQt6.QtWidgets import QFileDialog, QMessageBox, QListWidgetItem
 from PyQt6.QtCore import Qt
 from DataReader import DWDataReader
-from model import Dewesoft, TubeSetupModel, ResultsModel, MeasurementModel, ProcessingModel, DataStore, ReportModel, TestConditionsModel
+from model import Dewesoft, TubeSetupModel, ResultsModel, MeasurementModel, ProcessingModel, DataStore, ReportModel, TestConditionsModel, SamplesModel
 import matplotlib.pyplot as plt
 from PyQt6.QtGui import QPixmap
 from io import BytesIO
@@ -19,6 +19,7 @@ from docx.enum.table import WD_TABLE_ALIGNMENT
 import os
 from lxml import etree
 from docx.oxml import OxmlElement
+from datetime import date
 
 from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, QTabWidget,
                              QLabel, QLineEdit, QPushButton, QGridLayout, QListWidget,
@@ -31,7 +32,6 @@ class TubeSetupController:
     def __init__(self, model, view):
         self.model = model  # TubeSetupModel, for example
         self.view = view
-
         # Connect the view to the controller
         self.view.set_controller(self)
 
@@ -48,6 +48,15 @@ class TubeSetupController:
         self.view.mic2_sample.clear()
         self.view.tube_diameter.clear()
 
+class SamplesController:
+    def __init__(self, model : SamplesModel, view):
+        self.model = model  # TubeSetupModel, for example
+        self.view = view
+        # Connect the view to the controller
+        self.view.set_controller(self)
+
+    def save_samples(self, data):
+        self.model.save_sample(data)
 
 class ResultsController:
     def __init__(self, model : ResultsModel, view : QResultsTab, signals):
@@ -544,7 +553,7 @@ class ReportGeneratorController:
         client_info.font.size = Pt(10)
 
         # Product info
-        product_label = info_table.cell(1, 0).paragraphs[0].add_run("PRODUCT(S):")
+        product_label = info_table.cell(1, 0).paragraphs[0].add_run("Purchase Order No.:")
         product_label.font.name = 'Arial'
         product_label.font.size = Pt(10)
         product_label.font.bold = True
@@ -559,7 +568,7 @@ class ReportGeneratorController:
         test_date_label.font.size = Pt(10)
         test_date_label.font.bold = True
 
-        test_date_info = info_table.cell(2, 1).paragraphs[0].add_run(str(date.today))
+        test_date_info = info_table.cell(2, 1).paragraphs[0].add_run(str(date.today()))
         test_date_info.font.name = 'Arial'
         test_date_info.font.size = Pt(10)
 
@@ -598,7 +607,7 @@ class ReportGeneratorController:
         date_issue_label.font.size = Pt(10)
         date_issue_label.font.bold = True
 
-        date_issue = report_info_table.cell(0, 1).paragraphs[0].add_run(str(date.today))
+        date_issue = report_info_table.cell(0, 1).paragraphs[0].add_run(str(date.today()))
         date_issue.font.name = 'Arial'
         date_issue.font.size = Pt(10)
 
@@ -613,38 +622,22 @@ class ReportGeneratorController:
         signature_table.autofit = False
 
         # Add "Signed:" text
-        signed_text = signature_table.cell(0, 0).paragraphs[0].add_run("Signed: ")
+        signed_text = signature_table.cell(0, 0).paragraphs[0].add_run("Executor: ")
         signed_text.font.name = 'Arial'
         signed_text.font.size = Pt(10)
         signed_text.font.bold = True
 
-        # Add "Approved:" text
-        approved_text = signature_table.cell(0, 1).paragraphs[0].add_run("Approved: ")
-        approved_text.font.name = 'Arial'
-        approved_text.font.size = Pt(10)
-        approved_text.font.bold = True
 
-        # Add Leonardo Weber name
+        # Add Supervisor
         name1 = signature_table.cell(1, 0).paragraphs[0].add_run("Pessoa 1\n")
         name1.font.name = 'Arial'
         name1.font.size = Pt(10)
 
-        # Add Leonardo Weber title in red
+        # Add Supervisor
         title1 = signature_table.cell(1, 0).paragraphs[0].add_run("Cargo 1")
         title1.font.name = 'Arial'
         title1.font.size = Pt(10)
         title1.font.color.rgb = RGBColor(220, 0, 0)
-
-        # Add Andy Moorhouse name
-        name2 = signature_table.cell(1, 1).paragraphs[0].add_run("Pessoa 2\n")
-        name2.font.name = 'Arial'
-        name2.font.size = Pt(10)
-
-        # Add Andy Moorhouse title in red
-        title2 = signature_table.cell(1, 1).paragraphs[0].add_run("Cargo2")
-        title2.font.name = 'Arial'
-        title2.font.size = Pt(10)
-        title2.font.color.rgb = RGBColor(220, 0, 0)
 
         # Make the table borders invisible
         for row in signature_table.rows:
@@ -905,14 +898,16 @@ class MainAppController:
         return controller
 
     def create_samples_controller(self):
-        # Similar logic for other controllers
-        pass
+        samples_model = SamplesModel(self.data_store)
+        samples_view = self.main_app_view.samples_tab
+        controller = SamplesController(samples_model, samples_view)
+        return controller
 
     def create_test_conditions_controller(self):
         conditions_model = TestConditionsModel(self.data_store)
         conditions_view = self.main_app_view.test_conditions_tab
         controller = TestConditionsController(conditions_model, conditions_view)
-        pass
+        return controller
 
     def create_report_controller(self):
         report_model = ReportModel(self.data_store)
