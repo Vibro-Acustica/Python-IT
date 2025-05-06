@@ -13,35 +13,6 @@ import pandas as pd
 
 import json
 
-class TubeSetupModel:
-    def __init__(self):
-        self.data = {
-            'mic_spacing': '',
-            'mic1_sample': '',
-            'mic2_sample': '',
-            'tube_diameter': ''
-        }
-        self.filename = ''
-
-    def save_data(self, filename):
-        with open(filename, 'w') as f:
-            json.dump(self.data, f)
-
-    def load_data(self, filename):
-        try:
-            with open(filename, 'r') as f:
-                self.data = json.load(f)
-        except FileNotFoundError:
-            print(f"File {filename} not found")
-            self.data = {}
-        return self.data
-
-    def set_data(self, mic_spacing, mic1_sample, mic2_sample, tube_diameter):
-        self.data['mic_spacing'] = mic_spacing
-        self.data['mic1_sample'] = mic1_sample
-        self.data['mic2_sample'] = mic2_sample
-        self.data['tube_diameter'] = tube_diameter
-
 class Dewesoft:
     def __init__(self):
         self.dw = Dispatch("Dewesoft.App")
@@ -83,6 +54,8 @@ class Dewesoft:
 class DataStore:
     """Centralized data store for sharing measurement results between models."""
     def __init__(self):
+        self.tube_measurement = {}
+        self.test_conditions = {}
         self.measurement_results = {}
         self.post_processed_results = {}
         self.absorption_coef = {}
@@ -110,6 +83,49 @@ class DataStore:
     
     def get_all_post_processed(self):
         return self.post_processed_results
+    
+    def add_tube_measurements(self, mic_spacing, diameter, mic_to_source_1, mic_to_source_2, name):
+        self.tube_measurement["mic_spac"] = mic_spacing
+        self.tube_measurement["diameter"] = diameter
+        self.tube_measurement["mic_source_1"] = mic_to_source_1
+        self.tube_measurement["mic_source_2"] = mic_to_source_2
+
+    def get_tube_measurements(self):
+        return self.tube_measurement
+    
+    def add_test_conditions(self, temp, humidty, pressure):
+        self.test_conditions["temp"] = temp
+        self.test_conditions["humi"] = humidty
+        self.test_conditions["pressure"] = pressure
+
+    def get_test_conditions(self):
+        return self.test_conditions
+    
+class TubeSetupModel:
+    def __init__(self, data_store : DataStore):
+        self.data = {
+            'mic_spacing': '',
+            'mic1_sample': '',
+            'mic2_sample': '',
+            'tube_diameter': ''
+        }
+        self.data_store = data_store
+
+    def save_data(self, filename):
+        with open(filename, 'w') as f:
+            json.dump(self.data, f)
+
+    def load_data(self, filename):
+        try:
+            with open(filename, 'r') as f:
+                self.data = json.load(f)
+        except FileNotFoundError:
+            print(f"File {filename} not found")
+            self.data = {}
+        return self.data
+
+    def set_data(self, mic_spacing, mic1_sample, mic2_sample, tube_diameter):
+        self.data_store.add_tube_measurements(mic_spacing, diameter=tube_diameter, mic_to_source_1=mic1_sample, mic_to_source_2=mic2_sample)
 
 class ResultsModel:
     def __init__(self, data_store : DataStore):
@@ -843,6 +859,31 @@ class ReportModel:
     def get_all_metrics(self):
         # Example: return a dictionary with each metric's data
         return self.data_store.get_all_measurements_with_metrics()
+    
+
+class TestConditionsModel:
+    def __init__(self, data_store : DataStore):
+        self._data = {
+            "temperature": {"value": None, "unit": None},
+            "pressure": {"value": None, "unit": None},
+            "humidity": {"value": None, "unit": "%"}
+        }
+        self.data_store = data_store
+
+    def set_temperature(self, value: float, unit: str):
+        self._data["temperature"] = {"value": value, "unit": unit}
+
+    def set_pressure(self, value: float, unit: str):
+        self._data["pressure"] = {"value": value, "unit": unit}
+
+    def set_humidity(self, value: float):
+        self._data["humidity"] = {"value": value, "unit": "%"}
+
+    def save_all(self):
+        self.data_store.add_test_conditions(self._data["temperature"],self._data["pressure"],self._data["humidity"])
+
+    def get_data(self) -> dict:
+        return self._data
 
 def run():
     dreader = DWDataReader()

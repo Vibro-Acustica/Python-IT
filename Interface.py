@@ -648,10 +648,14 @@ class QTestConditionsTab(QWidget):
         
         # Save Button
         save_button = QPushButton("Save Test Conditions")
-        save_button.clicked.connect(self.save_conditions)
+        #save_button.clicked.connect(self.save_conditions)
         layout.addWidget(save_button)
         
         self.setLayout(layout)
+    
+    def set_controller(self, controller):
+        self.controller = controller
+        self.save_button.clicked.connect(self.controller.save_measurements)
 
     def save_conditions(self):
         # Collect data

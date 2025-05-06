@@ -1,6 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.signal import stft, get_window
+import os
 
 class CalculationISO:
     def __init__(self):
@@ -231,6 +232,10 @@ class CalculationISO:
         ax.legend()
         
         fig.tight_layout()
+
+        base_path = os.path.dirname(os.path.abspath(__file__))
+        save_path = os.path.join(base_path, "ac.png")
+        fig.savefig(save_path, dpi=300)
         
         return fig, ax
     
