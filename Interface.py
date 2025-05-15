@@ -39,6 +39,7 @@ class StyleHelper:
         QWidget {
             font-size: 14px;
             background-color: #f4f4f4;
+            color: #000000;
         }
         
         /* Tab Widget Styling */
@@ -49,7 +50,7 @@ class StyleHelper:
         
         QTabBar::tab {
             background-color: #f0f0f0;
-            color: #333;
+            color: #000000;
             padding: 10px 20px;
             margin-right: 5px;
             border-top-left-radius: 10px;
@@ -60,19 +61,21 @@ class StyleHelper:
         QTabBar::tab:selected {
             background-color: #e0e0e0;
             font-weight: bold;
+            color: #000000;
         }
         
         /* Input Fields */
-        QLineEdi {
+        QLineEdit {
             padding: 10px;
             border: 2px solid #ccc;
             border-radius: 8px;
             background-color: white;
             min-height: 40px;
+            color: #000000;
         }
 
         QComboBox {
-            color: #333; /* Default text color */
+            color: #000000;
             background-color: white;
             padding: 10px;
             border: 2px solid #ccc;
@@ -80,17 +83,28 @@ class StyleHelper:
             min-height: 40px;
         }
 
+        QComboBox::drop-down {
+            border: none;
+            color: #000000;
+        }
+
         QComboBox::down-arrow {
-            color: #4A90E2; /* Color of the dropdown arrow */
+            color: #000000;
+        }
+
+        QComboBox QAbstractItemView {
+            background-color: white;
+            color: #000000;
         }
 
         QComboBox::item {
-            color: black; /* Color of items in the dropdown list */
+            color: #000000;
+            background-color: white;
         }
 
         QComboBox::item:selected {
-            color: balck; /* Color of selected item in dropdown */
-            background-color: #4A90E2; /* Background of selected item */
+            color: #000000;
+            background-color: #e0e0e0;
         }
         
         QLineEdit:focus, QComboBox:focus {
@@ -117,14 +131,99 @@ class StyleHelper:
         
         /* Labels */
         QLabel {
-            color: #333;
+            color: #000000;
             font-weight: bold;
             margin-bottom: 5px;
         }
 
+        /* List Widgets */
+        QListWidget {
+            background-color: white;
+            color: #000000;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+
+        QListWidget::item {
+            color: #000000;
+            padding: 5px;
+        }
+
+        QListWidget::item:selected {
+            background-color: #e0e0e0;
+            color: #000000;
+        }
+
+        /* Text Browser */
+        QTextBrowser {
+            background-color: white;
+            color: #000000;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+
+        /* Group Box */
+        QGroupBox {
+            color: #000000;
+            border: 1px solid #ccc;
+            margin-top: 1em;
+            padding-top: 1em;
+        }
+
+        QGroupBox::title {
+            color: #000000;
+            subcontrol-origin: margin;
+            left: 10px;
+            padding: 0 3px 0 3px;
+        }
+
         /* Checkboxes */
         QCheckBox {
-            color: #333; /* Cor do texto do checkbox */
+            color: #000000;
+        }
+
+        QCheckBox::indicator {
+            width: 13px;
+            height: 13px;
+        }
+
+        /* Spinboxes */
+        QSpinBox {
+            color: #000000;
+            background-color: white;
+            padding: 5px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+
+        /* Status Bar */
+        QStatusBar {
+            color: #000000;
+            background-color: #f4f4f4;
+        }
+
+        /* Menu and Menu Items */
+        QMenuBar {
+            background-color: #f4f4f4;
+            color: #000000;
+        }
+
+        QMenuBar::item {
+            color: #000000;
+        }
+
+        QMenu {
+            background-color: white;
+            color: #000000;
+        }
+
+        QMenu::item {
+            color: #000000;
+        }
+
+        QMenu::item:selected {
+            background-color: #e0e0e0;
+            color: #000000;
         }
         """
 
@@ -255,27 +354,171 @@ class QReportViewTab(QWidget):
     def __init__(self):
         super().__init__()
         self.controller = None
+        self.setup_ui()
 
+    def setup_ui(self):
         layout = QVBoxLayout()
+        
+        # Client Information Group
+        client_group = QGroupBox("Client Information")
+        client_layout = QGridLayout()
+        
+        # Create input fields for client info
+        self.client_name = QLineEdit()
+        self.company = QLineEdit()
+        self.address = QLineEdit()
+        self.purchase_order = QLineEdit()
+        self.report_number = QLineEdit()
+        self.test_date = QLineEdit()
+        self.test_requester = QLineEdit()
+        self.test_executor = QLineEdit()
+        self.test_supervisor = QLineEdit()
+        
+        # Add fields to layout
+        row = 0
+        for label, widget in [
+            ("Client Name*:", self.client_name),
+            ("Company:", self.company),
+            ("Address:", self.address),
+            ("Purchase Order:", self.purchase_order),
+            ("Report Number*:", self.report_number),
+            ("Test Date*:", self.test_date),
+            ("Test Requester:", self.test_requester),
+            ("Test Executor*:", self.test_executor),
+            ("Test Supervisor:", self.test_supervisor)
+        ]:
+            client_layout.addWidget(QLabel(label), row, 0)
+            client_layout.addWidget(widget, row, 1)
+            row += 1
+            
+        client_group.setLayout(client_layout)
+        
+        # Sample Information Group
+        sample_group = QGroupBox("Sample Information")
+        sample_layout = QGridLayout()
+        
+        # Create input fields for sample info
+        self.product_name = QLineEdit()
+        self.manufacturer = QLineEdit()
+        self.description = QLineEdit()
+        self.layers = QLineEdit()
+        self.conditions = QLineEdit()
+        self.mounting = QLineEdit()
+        
+        # Add fields to layout
+        row = 0
+        for label, widget in [
+            ("Product Name:", self.product_name),
+            ("Manufacturer:", self.manufacturer),
+            ("Description:", self.description),
+            ("Layers:", self.layers),
+            ("Conditions:", self.conditions),
+            ("Mounting:", self.mounting)
+        ]:
+            sample_layout.addWidget(QLabel(label), row, 0)
+            sample_layout.addWidget(widget, row, 1)
+            row += 1
+            
+        sample_group.setLayout(sample_layout)
+        
+        # Add groups to main layout
+        layout.addWidget(client_group)
+        layout.addWidget(sample_group)
+        
+        # Add note about required fields
+        note = QLabel("* Required fields")
+        note.setStyleSheet("color: red;")
+        layout.addWidget(note)
+        
+        # Add buttons
+        button_layout = QHBoxLayout()
+        
         self.preview_button = QPushButton("Preview Report")
+        self.preview_button.clicked.connect(self.handle_preview)
+        
         self.export_button = QPushButton("Export Report")
-        self.status_label = QLabel("Ready")
-
-        layout.addWidget(self.preview_button)
-        layout.addWidget(self.export_button)
+        self.export_button.clicked.connect(self.handle_export)
+        
+        button_layout.addWidget(self.preview_button)
+        button_layout.addWidget(self.export_button)
+        
+        layout.addLayout(button_layout)
+        
+        # Add status label
+        self.status_label = QLabel("")
         layout.addWidget(self.status_label)
+        
         self.setLayout(layout)
-
-        self.preview_button.clicked.connect(lambda: self.controller.handle_preview())
-        self.export_button.clicked.connect(lambda: self.controller.handle_export())
 
     def set_controller(self, controller):
         self.controller = controller
 
-    def update_status(self, message):
+    def get_client_info(self) -> dict:
+        """Get client information from input fields."""
+        return {
+            'name': self.client_name.text(),
+            'company': self.company.text(),
+            'address': self.address.text(),
+            'purchase_order': self.purchase_order.text(),
+            'report_number': self.report_number.text(),
+            'test_date': self.test_date.text(),
+            'test_requester': self.test_requester.text(),
+            'test_executor': self.test_executor.text(),
+            'test_supervisor': self.test_supervisor.text()
+        }
+
+    def get_sample_info(self) -> dict:
+        """Get sample information from input fields."""
+        return {
+            'product_name': self.product_name.text(),
+            'manufacturer': self.manufacturer.text(),
+            'description': self.description.text(),
+            'layers': self.layers.text(),
+            'conditions': self.conditions.text(),
+            'mounting': self.mounting.text()
+        }
+
+    def set_data(self, client_info: dict, sample_info: dict):
+        """Set data in input fields."""
+        # Set client info
+        self.client_name.setText(client_info.get('name', ''))
+        self.company.setText(client_info.get('company', ''))
+        self.address.setText(client_info.get('address', ''))
+        self.purchase_order.setText(client_info.get('purchase_order', ''))
+        self.report_number.setText(client_info.get('report_number', ''))
+        self.test_date.setText(str(client_info.get('test_date', '')))
+        self.test_requester.setText(client_info.get('test_requester', ''))
+        self.test_executor.setText(client_info.get('test_executor', ''))
+        self.test_supervisor.setText(client_info.get('test_supervisor', ''))
+        
+        # Set sample info
+        self.product_name.setText(sample_info.get('product_name', ''))
+        self.manufacturer.setText(sample_info.get('manufacturer', ''))
+        self.description.setText(sample_info.get('description', ''))
+        self.layers.setText(sample_info.get('layers', ''))
+        self.conditions.setText(sample_info.get('conditions', ''))
+        self.mounting.setText(sample_info.get('mounting', ''))
+
+    def update_status(self, message: str):
+        """Update status message."""
         self.status_label.setText(message)
-        QMessageBox.information(self, "Report", message)
-    
+        self.status_label.setStyleSheet("color: green;")
+
+    def show_error(self, message: str):
+        """Show error message."""
+        self.status_label.setText(message)
+        self.status_label.setStyleSheet("color: red;")
+
+    def handle_preview(self):
+        """Handle preview button click."""
+        if self.controller:
+            self.controller.handle_preview()
+
+    def handle_export(self):
+        """Handle export button click."""
+        if self.controller:
+            self.controller.handle_export()
+
 class QMeasurementsTab(QWidget):
     def __init__(self):
         super().__init__()
@@ -688,7 +931,6 @@ class QTestConditionsTab(QWidget):
         
         self.humidity.setText(data.get('humidity', ''))
 
-# Placeholder classes for other tabs (you can implement these similarly)
 class QSamplesTab(QWidget):
     def __init__(self):
         super().__init__()
@@ -716,78 +958,376 @@ class QSamplesTab(QWidget):
         
         # Action Buttons
         button_layout = QHBoxLayout()
-        save_button = QPushButton("Save Sample")
-        save_button.clicked.connect(self.save_samples)
-        delete_button = QPushButton("Delete Sample")
-        delete_button.clicked.connect(self.delete_sample)
+        self.save_button = QPushButton("Save Sample")
+        self.delete_button = QPushButton("Delete Sample")
         
-        button_layout.addWidget(save_button)
-        button_layout.addWidget(delete_button)
+        button_layout.addWidget(self.save_button)
+        button_layout.addWidget(self.delete_button)
         layout.addLayout(button_layout)
         
         self.setLayout(layout)
+        self.controller = None
+
+    def set_controller(self, controller):
+        """Set the controller for this view."""
+        self.controller = controller
+        # Connect buttons to controller methods
+        self.save_button.clicked.connect(self.save_samples)
+        self.delete_button.clicked.connect(self.delete_sample)
 
     def save_samples(self):
-        # Collect data
-        data = {
+        """Collect sample data and send to controller."""
+        if self.controller:
+            data = self.get_sample_data()
+            self.controller.save_samples(data)
+            QMessageBox.information(self, "Saved", "Sample details saved successfully!")
+
+    def delete_sample(self):
+        """Delete selected sample through controller."""
+        if self.controller:
+            current_item = self.sample_list.currentItem()
+            if current_item:
+                self.sample_list.takeItem(self.sample_list.row(current_item))
+                QMessageBox.information(self, "Deleted", "Sample deleted successfully!")
+            else:
+                QMessageBox.warning(self, "No Selection", "Please select a sample to delete.")
+
+    def get_sample_data(self):
+        """Get the current sample data from input fields."""
+        return {
             'num_samples': self.num_samples.text(),
             'sample_thickness': self.sample_thickness.text(),
             'sample_name': self.sample_name.text(),
             'remeasure_times': self.remeasure_times.text()
         }
-        
-        # Save to JSON
-        PersistenceManager.save_data('samples.json', data)
-        
-        # Show success message
-        QMessageBox.information(self, "Saved", "Sample details saved successfully!")
-
-    def delete_sample(self):
-        # Get current selected item
-        current_item = self.sample_list.currentItem()
-        if current_item:
-            self.sample_list.takeItem(self.sample_list.row(current_item))
 
     def load_data(self, data):
+        """Load data into the input fields."""
         self.num_samples.setText(data.get('num_samples', ''))
         self.sample_thickness.setText(data.get('sample_thickness', ''))
         self.sample_name.setText(data.get('sample_name', ''))
         self.remeasure_times.setText(data.get('remeasure_times', ''))
 
+    def display_message(self, message, title="Info"):
+        """Display a message to the user."""
+        QMessageBox.information(self, title, message)
+
 class QWarningsTab(QWidget):
     def __init__(self):
         super().__init__()
+        self.controller = None
+        self.setup_ui()
+
+    def setup_ui(self):
         layout = QVBoxLayout()
         
         # Signal-to-Noise Ratio Section
         snr_section = EnhancedSection("Signal Quality")
+        
+        # Add validators for numeric input
+        double_validator = QDoubleValidator()
+        
         self.snr = QLineEdit()
+        self.snr.setValidator(double_validator)
         snr_section.add_field("Signal-to-Noise Ratio (dB)", self.snr)
         
         self.autospec = QLineEdit()
+        self.autospec.setValidator(double_validator)
         snr_section.add_field("AutoSpectrum Max-Min (dB)", self.autospec)
         
         self.califact = QLineEdit()
+        self.califact.setValidator(double_validator)
         snr_section.add_field("Calibration Factor (dB)", self.califact)
         
         layout.addWidget(snr_section)
         
         # Save Button
-        save_button = QPushButton("Save Warnings")
-        layout.addWidget(save_button)
+        self.save_button = QPushButton("Save Warning Settings")
+        self.save_button.clicked.connect(self.on_save_clicked)
+        layout.addWidget(self.save_button)
+        
+        # Status Label
+        self.status_label = QLabel("")
+        self.status_label.setStyleSheet("color: green;")
+        layout.addWidget(self.status_label)
         
         self.setLayout(layout)
+
+    def set_controller(self, controller):
+        """Set the controller for this view."""
+        self.controller = controller
+        # Load existing settings when controller is set
+        self.load_settings()
+
+    def on_save_clicked(self):
+        """Handle save button click."""
+        if self.controller:
+            self.controller.save_warning_settings()
+
+    def get_warning_settings(self):
+        """Get current values from input fields."""
+        return {
+            'snr': self.snr.text(),
+            'auto_spec': self.autospec.text(),
+            'calib': self.califact.text()
+        }
+
+    def set_warning_settings(self, settings):
+        """Set values in input fields."""
+        self.snr.setText(str(settings.get('snr', '')))
+        self.autospec.setText(str(settings.get('auto_spec', '')))
+        self.califact.setText(str(settings.get('calib', '')))
+
+    def load_settings(self):
+        """Load existing settings through controller."""
+        if self.controller:
+            self.controller.load_warning_settings()
+
+    def show_success_message(self, message):
+        """Show success message."""
+        self.status_label.setStyleSheet("color: green;")
+        self.status_label.setText(message)
+        QMessageBox.information(self, "Success", message)
+
+    def show_error_message(self, message):
+        """Show error message."""
+        self.status_label.setStyleSheet("color: red;")
+        self.status_label.setText(message)
+        QMessageBox.critical(self, "Error", message)
 
 class QDocumentationTab(QWidget):
     def __init__(self):
         super().__init__()
-        layout = QVBoxLayout()
+        self.controller = None
         
-        # Documentation Browser
-        self.doc_browser = QTextBrowser()
-        layout.addWidget(self.doc_browser)
+        # Create layout
+        layout = QHBoxLayout()
+        
+        # Create sections list
+        sections_panel = QWidget()
+        sections_layout = QVBoxLayout()
+        sections_layout.addWidget(QLabel("Documentation Sections"))
+        
+        self.section_list = QListWidget()
+        sections_layout.addWidget(self.section_list)
+        sections_panel.setLayout(sections_layout)
+        
+        # Create content area
+        content_panel = QWidget()
+        content_layout = QVBoxLayout()
+        
+        self.title_label = QLabel()
+        self.title_label.setStyleSheet("""
+            font-size: 16px;
+            font-weight: bold;
+            color: #4A90E2;
+            padding: 10px 0;
+        """)
+        content_layout.addWidget(self.title_label)
+        
+        self.content_browser = QTextBrowser()
+        self.content_browser.setStyleSheet("""
+            background-color: white;
+            border: 1px solid #e0e0e0;
+            border-radius: 5px;
+            padding: 10px;
+        """)
+        content_layout.addWidget(self.content_browser)
+        
+        content_panel.setLayout(content_layout)
+        
+        # Add panels to main layout
+        layout.addWidget(sections_panel, 1)
+        layout.addWidget(content_panel, 3)
         
         self.setLayout(layout)
+    
+    def set_controller(self, controller):
+        self.controller = controller
+    
+    def clear_sections(self):
+        """Clear all sections from the list."""
+        self.section_list.clear()
+    
+    def add_section(self, section_name, title):
+        """Add a section to the list."""
+        item = QListWidgetItem(title)
+        item.setData(Qt.ItemDataRole.UserRole, section_name)
+        self.section_list.addItem(item)
+    
+    def display_section(self, title, content):
+        """Display a section's content."""
+        self.title_label.setText(title)
+        self.content_browser.setPlainText(content)
+
+class QReportGeneratorTab(QWidget):
+    def __init__(self):
+        super().__init__()
+        self.controller = None
+        self.setup_ui()
+
+    def setup_ui(self):
+        layout = QVBoxLayout()
+        
+        # Client Information Group
+        client_group = QGroupBox("Client Information")
+        client_layout = QGridLayout()
+        
+        # Create input fields for client info
+        self.client_name = QLineEdit()
+        self.company = QLineEdit()
+        self.address = QLineEdit()
+        self.purchase_order = QLineEdit()
+        self.report_number = QLineEdit()
+        self.test_date = QLineEdit()
+        self.test_requester = QLineEdit()
+        self.test_executor = QLineEdit()
+        self.test_supervisor = QLineEdit()
+        
+        # Add fields to layout
+        row = 0
+        for label, widget in [
+            ("Client Name*:", self.client_name),
+            ("Company:", self.company),
+            ("Address:", self.address),
+            ("Purchase Order:", self.purchase_order),
+            ("Report Number*:", self.report_number),
+            ("Test Date*:", self.test_date),
+            ("Test Requester:", self.test_requester),
+            ("Test Executor*:", self.test_executor),
+            ("Test Supervisor:", self.test_supervisor)
+        ]:
+            client_layout.addWidget(QLabel(label), row, 0)
+            client_layout.addWidget(widget, row, 1)
+            row += 1
+            
+        client_group.setLayout(client_layout)
+        
+        # Sample Information Group
+        sample_group = QGroupBox("Sample Information")
+        sample_layout = QGridLayout()
+        
+        # Create input fields for sample info
+        self.product_name = QLineEdit()
+        self.manufacturer = QLineEdit()
+        self.description = QLineEdit()
+        self.layers = QLineEdit()
+        self.conditions = QLineEdit()
+        self.mounting = QLineEdit()
+        
+        # Add fields to layout
+        row = 0
+        for label, widget in [
+            ("Product Name:", self.product_name),
+            ("Manufacturer:", self.manufacturer),
+            ("Description:", self.description),
+            ("Layers:", self.layers),
+            ("Conditions:", self.conditions),
+            ("Mounting:", self.mounting)
+        ]:
+            sample_layout.addWidget(QLabel(label), row, 0)
+            sample_layout.addWidget(widget, row, 1)
+            row += 1
+            
+        sample_group.setLayout(sample_layout)
+        
+        # Add groups to main layout
+        layout.addWidget(client_group)
+        layout.addWidget(sample_group)
+        
+        # Add note about required fields
+        note = QLabel("* Required fields")
+        note.setStyleSheet("color: red;")
+        layout.addWidget(note)
+        
+        # Add buttons
+        button_layout = QHBoxLayout()
+        
+        self.preview_button = QPushButton("Preview Report")
+        self.preview_button.clicked.connect(self.handle_preview)
+        
+        self.export_button = QPushButton("Export Report")
+        self.export_button.clicked.connect(self.handle_export)
+        
+        button_layout.addWidget(self.preview_button)
+        button_layout.addWidget(self.export_button)
+        
+        layout.addLayout(button_layout)
+        
+        # Add status label
+        self.status_label = QLabel("")
+        layout.addWidget(self.status_label)
+        
+        self.setLayout(layout)
+
+    def set_controller(self, controller):
+        self.controller = controller
+
+    def get_client_info(self) -> dict:
+        """Get client information from input fields."""
+        return {
+            'name': self.client_name.text(),
+            'company': self.company.text(),
+            'address': self.address.text(),
+            'purchase_order': self.purchase_order.text(),
+            'report_number': self.report_number.text(),
+            'test_date': self.test_date.text(),
+            'test_requester': self.test_requester.text(),
+            'test_executor': self.test_executor.text(),
+            'test_supervisor': self.test_supervisor.text()
+        }
+
+    def get_sample_info(self) -> dict:
+        """Get sample information from input fields."""
+        return {
+            'product_name': self.product_name.text(),
+            'manufacturer': self.manufacturer.text(),
+            'description': self.description.text(),
+            'layers': self.layers.text(),
+            'conditions': self.conditions.text(),
+            'mounting': self.mounting.text()
+        }
+
+    def update_status(self, message: str):
+        """Update status message."""
+        self.status_label.setText(message)
+        self.status_label.setStyleSheet("color: green;")
+
+    def show_error(self, message: str):
+        """Show error message."""
+        self.status_label.setText(message)
+        self.status_label.setStyleSheet("color: red;")
+
+    def handle_preview(self):
+        """Handle preview button click."""
+        if self.controller:
+            self.controller.handle_preview()
+
+    def handle_export(self):
+        """Handle export button click."""
+        if self.controller:
+            self.controller.handle_export()
+
+    def set_data(self, client_info: dict, sample_info: dict):
+        """Set data in input fields."""
+        # Set client info
+        self.client_name.setText(client_info.get('name', ''))
+        self.company.setText(client_info.get('company', ''))
+        self.address.setText(client_info.get('address', ''))
+        self.purchase_order.setText(client_info.get('purchase_order', ''))
+        self.report_number.setText(client_info.get('report_number', ''))
+        self.test_date.setText(str(client_info.get('test_date', '')))
+        self.test_requester.setText(client_info.get('test_requester', ''))
+        self.test_executor.setText(client_info.get('test_executor', ''))
+        self.test_supervisor.setText(client_info.get('test_supervisor', ''))
+        
+        # Set sample info
+        self.product_name.setText(sample_info.get('product_name', ''))
+        self.manufacturer.setText(sample_info.get('manufacturer', ''))
+        self.description.setText(sample_info.get('description', ''))
+        self.layers.setText(sample_info.get('layers', ''))
+        self.conditions.setText(sample_info.get('conditions', ''))
+        self.mounting.setText(sample_info.get('mounting', ''))
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)

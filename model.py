@@ -61,6 +61,38 @@ class DataStore:
         self.absorption_coef = {}
         self.samples = {}
         self.warnings = {}
+        self.state = {
+            'current_measurement': None,
+            'is_measuring': False,
+            'is_processing': False,
+            'last_error': None,
+            'current_sample': None,
+            'calibration_status': None,
+            'unsaved_changes': False
+        }
+        self.observers = []
+
+    def add_observer(self, observer):
+        """Add an observer to be notified of state changes."""
+        self.observers.append(observer)
+
+    def remove_observer(self, observer):
+        """Remove an observer."""
+        self.observers.remove(observer)
+
+    def notify_observers(self, property_name, value):
+        """Notify all observers of a state change."""
+        for observer in self.observers:
+            observer.on_state_change(property_name, value)
+
+    def set_state(self, property_name, value):
+        """Update state and notify observers."""
+        self.state[property_name] = value
+        self.notify_observers(property_name, value)
+
+    def get_state(self, property_name):
+        """Get current state value."""
+        return self.state.get(property_name)
 
     def add_result(self, result, name : str):
         self.measurement_results[name] = result
@@ -86,7 +118,7 @@ class DataStore:
     def get_all_post_processed(self):
         return self.post_processed_results
     
-    def add_tube_measurements(self, mic_spacing, diameter, mic_to_source_1, mic_to_source_2, name):
+    def add_tube_measurements(self, mic_spacing, diameter, mic_to_source_1, mic_to_source_2):
         self.tube_measurement["mic_spac"] = mic_spacing
         self.tube_measurement["diameter"] = diameter
         self.tube_measurement["mic_source_1"] = mic_to_source_1
@@ -126,19 +158,6 @@ class TubeSetupModel:
             'tube_diameter': ''
         }
         self.data_store = data_store
-
-    def save_data(self, filename):
-        with open(filename, 'w') as f:
-            json.dump(self.data, f)
-
-    def load_data(self, filename):
-        try:
-            with open(filename, 'r') as f:
-                self.data = json.load(f)
-        except FileNotFoundError:
-            print(f"File {filename} not found")
-            self.data = {}
-        return self.data
 
     def set_data(self, mic_spacing, mic1_sample, mic2_sample, tube_diameter):
         self.data_store.add_tube_measurements(mic_spacing, diameter=tube_diameter, mic_to_source_1=mic1_sample, mic_to_source_2=mic2_sample)
@@ -510,7 +529,25 @@ class WarningsModel:
         self.data_store = data_store
         
     def save_warning_settings(self, snr, auto_spec, calib):
-        self.data_store
+        """Save warning settings to the data store."""
+        try:
+            self.data_store.add_warnings(snr=snr, auto_spec=auto_spec, calib=calib)
+            return True
+        except Exception as e:
+            print(f"Error saving warning settings: {e}")
+            return False
+    
+    def get_warning_settings(self):
+        """Get current warning settings from the data store."""
+        try:
+            return self.data_store.get_warnings()
+        except Exception as e:
+            print(f"Error getting warning settings: {e}")
+            return {
+                'snr': '',
+                'auto_spec': '',
+                'calib': ''
+            }
 
 class ProcessingModel:
     def __init__(self, data_store: DataStore):
@@ -884,13 +921,152 @@ class ProcessingModel:
             return False
         
 class ReportModel:
-    def __init__(self, data_store):
-        self.data_store = data_store  # Shared repository
+    """Model for handling report data and generation."""
+    def __init__(self, data_store: DataStore):
+        self.data_store = data_store
+        self.report_data = {
+            'client_info': {
+                'name': '',
+                'company': '',
+                'address': '',
+                'purchase_order': '',
+                'test_date': None,
+                'report_number': '',
+                'test_requester': '',
+                'test_executor': '',
+                'test_supervisor': ''
+            },
+            'sample_info': {
+                'product_name': '',
+                'manufacturer': '',
+                'description': '',
+                'layers': '',
+                'conditions': '',
+                'mounting': ''
+            },
+            'test_conditions': None,  # Will be populated from data_store
+            'equipment': [
+                {
+                    'name': "DewesoftX",
+                    'serial': "2477213 / PULSE N.2"
+                },
+                {
+                    'name': "Impedance Tube Type 4206",
+                    'serial': "2681869"
+                },
+                {
+                    'name': "Desktop PC with Software and Peripheral Equipment",
+                    'serial': "21329"
+                },
+                {
+                    'name': "Two ¼ Condenser Microphones Type 4187",
+                    'serial': "2677390 & 2677391"
+                },
+                {
+                    'name': "Power Amplifier",
+                    'serial': "129003364"
+                }
+            ],
+            'tube_setup': None,  # Will be populated from data_store
+            'measurements': None,  # Will be populated from data_store
+            'results': None  # Will be populated from data_store
+        }
 
-    def get_all_metrics(self):
-        # Example: return a dictionary with each metric's data
-        return self.data_store.get_all_measurements_with_metrics()
-    
+    def update_client_info(self, client_info: dict):
+        """Update client information for the report."""
+        self.report_data['client_info'].update(client_info)
+
+    def update_sample_info(self, sample_info: dict):
+        """Update sample information for the report."""
+        self.report_data['sample_info'].update(sample_info)
+
+    def get_client_info(self) -> dict:
+        """Get current client information."""
+        return self.report_data['client_info']
+
+    def get_sample_info(self) -> dict:
+        """Get current sample information."""
+        return self.report_data['sample_info']
+
+    def validate_report_data(self) -> tuple[bool, list[str]]:
+        """Validate report data before generation.
+        
+        Returns:
+            tuple: (is_valid, list of error messages)
+        """
+        errors = []
+        client_info = self.report_data['client_info']
+        
+        # Required fields
+        required_fields = {
+            'name': 'Client Name',
+            'report_number': 'Report Number',
+            'test_date': 'Test Date',
+            'test_executor': 'Test Executor'
+        }
+        
+        for field, display_name in required_fields.items():
+            if not client_info.get(field):
+                errors.append(f"{display_name} is required")
+        
+        return len(errors) == 0, errors
+
+    def load_test_conditions(self):
+        """Load test conditions from data store."""
+        self.report_data['test_conditions'] = self.data_store.get_test_conditions()
+
+    def load_tube_setup(self):
+        """Load tube setup from data store."""
+        self.report_data['tube_setup'] = self.data_store.get_tube_measurements()
+
+    def load_measurements(self):
+        """Load measurement results from data store."""
+        self.report_data['measurements'] = self.data_store.get_results()
+
+    def load_results(self):
+        """Load processed results from data store."""
+        self.report_data['results'] = self.data_store.get_all_post_processed()
+
+    def get_absorption_data(self):
+        """Get absorption coefficient data for different tube diameters."""
+        if not self.report_data['measurements']:
+            return []
+
+        results = []
+        measurements = self.report_data['measurements']
+        
+        # Get data for both tube diameters
+        tube_100mm = measurements.get('TestAbsorcao_Medicao', {})
+        tube_29mm = measurements.get('TestAbsorcao_MicTrocado', {})
+
+        if tube_100mm and tube_29mm:
+            # Process the data to get frequency and absorption coefficients
+            # This is a placeholder - implement actual data processing logic
+            frequencies = tube_100mm.get('frequency', [])
+            alpha_100mm = tube_100mm.get('absorption', [])
+            alpha_29mm = tube_29mm.get('absorption', [])
+            
+            for freq, a100, a29 in zip(frequencies, alpha_100mm, alpha_29mm):
+                # Calculate combined value based on your specific requirements
+                combined = (a100 + a29) / 2  # This is simplified - implement proper combination logic
+                results.append((freq, a100, a29, combined))
+
+        return sorted(results, key=lambda x: x[0])  # Sort by frequency
+
+    def get_report_metadata(self):
+        """Get metadata for report generation."""
+        return {
+            'client_info': self.report_data['client_info'],
+            'test_conditions': self.report_data['test_conditions'],
+            'equipment': self.report_data['equipment']
+        }
+
+    def refresh_data(self):
+        """Refresh all data from data store."""
+        self.load_test_conditions()
+        self.load_tube_setup()
+        self.load_measurements()
+        self.load_results()
 
 class TestConditionsModel:
     def __init__(self, data_store : DataStore):
@@ -915,6 +1091,266 @@ class TestConditionsModel:
 
     def get_data(self) -> dict:
         return self._data
+
+class DocumentationModel:
+    """Model for managing documentation content and structure."""
+    def __init__(self, data_store: DataStore):
+        self.data_store = data_store
+        self.documentation = {
+            'tube_setup': {
+                'title': 'Impedance Tube Setup Guide',
+                'content': '''
+                The impedance tube setup requires careful attention to the following aspects:
+                
+                1. Microphone Spacing
+                   - Must be appropriate for the frequency range of interest
+                   - Affects the working frequency range
+                   - Should be calibrated and verified regularly
+                
+                2. Tube Diameter
+                   - Determines the upper frequency limit
+                   - Must be appropriate for the sample size
+                   - Affects the plane wave propagation
+                
+                3. Sample Mounting
+                   - Must be secure and airtight
+                   - Sample should fit snugly in the tube
+                   - Avoid air gaps between sample and tube wall
+                
+                4. Equipment Verification
+                   - Check microphone calibration
+                   - Verify signal generator functionality
+                   - Ensure proper amplifier settings
+                
+                5. Environmental Conditions
+                   - Monitor temperature and humidity
+                   - Keep conditions stable during measurements
+                   - Document all environmental parameters
+                '''
+            },
+            'measurement_procedure': {
+                'title': 'Measurement Procedure Guide',
+                'content': '''
+                Follow these steps for accurate measurements:
+                
+                1. Pre-measurement Checks
+                   - Verify all equipment is properly connected
+                   - Check microphone positions
+                   - Ensure sample is properly mounted
+                
+                2. Signal Setup
+                   - Set appropriate frequency range
+                   - Adjust signal amplitude
+                   - Check for signal distortion
+                
+                3. Data Collection
+                   - Record background noise levels
+                   - Perform calibration measurements
+                   - Take multiple measurements for averaging
+                
+                4. Quality Control
+                   - Monitor signal-to-noise ratio
+                   - Check for measurement consistency
+                   - Verify data validity
+                
+                5. Data Storage
+                   - Save raw measurement data
+                   - Document measurement conditions
+                   - Backup all results
+                '''
+            },
+            'data_processing': {
+                'title': 'Data Processing Guidelines',
+                'content': '''
+                Data processing involves several important steps:
+                
+                1. Raw Data Analysis
+                   - Import measurement data
+                   - Check data integrity
+                   - Apply calibration corrections
+                
+                2. Signal Processing
+                   - Apply appropriate windowing
+                   - Perform FFT analysis
+                   - Calculate transfer functions
+                
+                3. Acoustic Parameters
+                   - Calculate absorption coefficients
+                   - Determine impedance values
+                   - Evaluate measurement uncertainty
+                
+                4. Result Validation
+                   - Compare with expected values
+                   - Check for physical consistency
+                   - Identify anomalies
+                
+                5. Documentation
+                   - Generate comprehensive reports
+                   - Include all relevant metadata
+                   - Archive processed results
+                '''
+            },
+            'troubleshooting': {
+                'title': 'Troubleshooting Guide',
+                'content': '''
+                Common issues and their solutions:
+                
+                1. Poor Signal Quality
+                   - Check cable connections
+                   - Verify microphone power supply
+                   - Inspect for damaged components
+                
+                2. Inconsistent Results
+                   - Verify sample mounting
+                   - Check environmental stability
+                   - Review calibration status
+                
+                3. System Errors
+                   - Restart measurement software
+                   - Check system configuration
+                   - Verify hardware compatibility
+                
+                4. Data Issues
+                   - Backup corrupted files
+                   - Verify storage space
+                   - Check file permissions
+                
+                5. Calibration Problems
+                   - Recalibrate microphones
+                   - Check reference standards
+                   - Document calibration history
+                '''
+            },
+            'maintenance': {
+                'title': 'Equipment Maintenance',
+                'content': '''
+                Regular maintenance procedures:
+                
+                1. Daily Checks
+                   - Clean tube interior
+                   - Inspect microphones
+                   - Check cable connections
+                
+                2. Weekly Maintenance
+                   - Calibrate microphones
+                   - Verify system performance
+                   - Update software if needed
+                
+                3. Monthly Tasks
+                   - Deep clean all components
+                   - Check for wear and tear
+                   - Update documentation
+                
+                4. Quarterly Service
+                   - Full system calibration
+                   - Hardware inspection
+                   - Software updates
+                
+                5. Annual Maintenance
+                   - Professional servicing
+                   - Replace worn components
+                   - Validate system accuracy
+                '''
+            }
+        }
+
+    def get_documentation_section(self, section_name: str) -> dict:
+        """
+        Retrieve a specific documentation section.
+        
+        Args:
+            section_name (str): Name of the section to retrieve
+            
+        Returns:
+            dict: Section data containing title and content, or None if not found
+        """
+        return self.documentation.get(section_name)
+
+    def get_all_sections(self) -> dict:
+        """
+        Get all documentation sections.
+        
+        Returns:
+            dict: All documentation sections
+        """
+        return self.documentation
+
+    def update_section(self, section_name: str, title: str, content: str) -> bool:
+        """
+        Update a documentation section.
+        
+        Args:
+            section_name (str): Name of the section to update
+            title (str): New title for the section
+            content (str): New content for the section
+            
+        Returns:
+            bool: True if update successful, False otherwise
+        """
+        if section_name in self.documentation:
+            self.documentation[section_name] = {
+                'title': title,
+                'content': content
+            }
+            return True
+        return False
+
+    def add_section(self, section_name: str, title: str, content: str) -> bool:
+        """
+        Add a new documentation section.
+        
+        Args:
+            section_name (str): Name for the new section
+            title (str): Title for the new section
+            content (str): Content for the new section
+            
+        Returns:
+            bool: True if addition successful, False if section already exists
+        """
+        if section_name not in self.documentation:
+            self.documentation[section_name] = {
+                'title': title,
+                'content': content
+            }
+            return True
+        return False
+
+    def delete_section(self, section_name: str) -> bool:
+        """
+        Delete a documentation section.
+        
+        Args:
+            section_name (str): Name of the section to delete
+            
+        Returns:
+            bool: True if deletion successful, False if section not found
+        """
+        if section_name in self.documentation:
+            del self.documentation[section_name]
+            return True
+        return False
+
+    def search_documentation(self, query: str) -> list:
+        """
+        Search through documentation content.
+        
+        Args:
+            query (str): Search query string
+            
+        Returns:
+            list: List of matching section names and titles
+        """
+        results = []
+        query = query.lower()
+        for section_name, section_data in self.documentation.items():
+            if (query in section_name.lower() or
+                query in section_data['title'].lower() or
+                query in section_data['content'].lower()):
+                results.append({
+                    'section_name': section_name,
+                    'title': section_data['title']
+                })
+        return results
 
 def run():
     dreader = DWDataReader()

@@ -1,13 +1,13 @@
-from PyQt6.QtCore import pyqtSlot
+from PyQt6.QtCore import pyqtSlot, QObject
 from PyQt6.QtWidgets import QFileDialog, QMessageBox, QListWidgetItem
 from PyQt6.QtCore import Qt
 from DataReader import DWDataReader
-from model import Dewesoft, TubeSetupModel, ResultsModel, MeasurementModel, ProcessingModel, DataStore, ReportModel, TestConditionsModel, SamplesModel
+from model import Dewesoft, TubeSetupModel, ResultsModel, MeasurementModel, ProcessingModel, DataStore, ReportModel, TestConditionsModel, SamplesModel, DocumentationModel, WarningsModel
 import matplotlib.pyplot as plt
 from PyQt6.QtGui import QPixmap
 from io import BytesIO
 from Interface import QResultsTab
-from PyQt6.QtCore import Qt, pyqtSignal, QObject
+from PyQt6.QtCore import Qt, pyqtSignal
 from docx import Document
 from docx.shared import Inches, Pt, RGBColor
 from datetime import date
@@ -20,6 +20,7 @@ import os
 from lxml import etree
 from docx.oxml import OxmlElement
 from datetime import date
+import logging
 
 from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, QTabWidget,
                              QLabel, QLineEdit, QPushButton, QGridLayout, QListWidget,
@@ -27,6 +28,31 @@ from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, QT
                              QFileDialog, QProgressBar, QCheckBox, QTabWidget, QListWidgetItem, QSizePolicy, QGroupBox, QAbstractItemView, QSpinBox)  # Importação corrigida
 from PyQt6.QtGui import QFont, QDoubleValidator, QColor
 from PyQt6.QtCore import Qt
+
+class BaseController(QObject):
+    def __init__(self):
+        super().__init__()
+        self.logger = logging.getLogger(self.__class__.__name__)
+
+    def handle_error(self, error, title="Error", show_user=True):
+        """Centralized error handling for all controllers."""
+        self.logger.error(f"{title}: {str(error)}")
+        if show_user:
+            QMessageBox.critical(None, title, str(error))
+
+    def validate_input(self, data, rules):
+        """Basic input validation."""
+        errors = []
+        for field, value in data.items():
+            if field in rules:
+                if 'required' in rules[field] and rules[field]['required'] and not value:
+                    errors.append(f"{field} is required")
+                if 'type' in rules[field]:
+                    try:
+                        rules[field]['type'](value)
+                    except ValueError:
+                        errors.append(f"{field} must be of type {rules[field]['type'].__name__}")
+        return errors
 
 class TubeSetupController:
     def __init__(self, model, view):
@@ -36,10 +62,13 @@ class TubeSetupController:
         self.view.set_controller(self)
 
     def save_measurements(self, data):
-        # Save the data to the model (this could be saving to a file, database, etc.)
-        self.model.save_data(data)
-        # Optionally, you could give feedback to the view (e.g., success message)
-        QMessageBox.information(self.view, "Saved", "Tube setup measurements saved successfully!")
+        try:
+            # Save the data to the model
+            self.model.save_data(data)
+            # Show success message
+            QMessageBox.information(self.view, "Success", "Tube setup measurements saved successfully!")
+        except Exception as e:
+            QMessageBox.critical(self.view, "Error", f"Failed to save measurements: {str(e)}")
     
     def reset_fields(self):
         # Reset logic (if necessary)
@@ -56,7 +85,11 @@ class SamplesController:
         self.view.set_controller(self)
 
     def save_samples(self, data):
-        self.model.save_sample(data)
+        try:
+            self.model.save_sample(data)
+            QMessageBox.information(self.view, "Success", "Sample data saved successfully!")
+        except Exception as e:
+            QMessageBox.critical(self.view, "Error", f"Failed to save sample: {str(e)}")
 
 class ResultsController:
     def __init__(self, model : ResultsModel, view : QResultsTab, signals):
@@ -206,17 +239,19 @@ class TestConditionsController:
         self.view.set_controller(self)
 
     def save_measurements(self):
-        temp = self.view.temp.text()
-        temp_unit = self.view.temp_unit.currentText()
-        self.model.set_temperature(temp,temp_unit)
-        pressure = self.view.pressure.text()
-        pressure_unit = self.view.pressure_unit.currentText()
-        self.model.set_pressure(pressure, pressure_unit)
-        humidity = self.view.humidity.text()
-        self.model.set_humidity(humidity)
-        self.model.save_all()
-        
-
+        try:
+            temp = self.view.temp.text()
+            temp_unit = self.view.temp_unit.currentText()
+            self.model.set_temperature(temp,temp_unit)
+            pressure = self.view.pressure.text()
+            pressure_unit = self.view.pressure_unit.currentText()
+            self.model.set_pressure(pressure, pressure_unit)
+            humidity = self.view.humidity.text()
+            self.model.set_humidity(humidity)
+            self.model.save_all()
+            QMessageBox.information(self.view, "Success", "Test conditions saved successfully!")
+        except Exception as e:
+            QMessageBox.critical(self.view, "Error", f"Failed to save test conditions: {str(e)}")
 
 class ProcessingController:
     def __init__(self, model, view, measurements_signals):
@@ -399,8 +434,8 @@ class ProcessingController:
         # Call model method to process the data
         try:
             result = self.model.process_measurements(selected_measurements, operations)
-            QMessageBox.information(self.view, "Processing Complete", 
-                                   f"Successfully processed {len(selected_measurements)} measurements.")
+            QMessageBox.information(self.view, "Success", 
+                                   f"Successfully processed {len(selected_measurements)} measurements!")
         except Exception as e:
             QMessageBox.critical(self.view, "Processing Error", 
                                 f"An error occurred during processing: {str(e)}")
@@ -436,445 +471,474 @@ class ProcessingController:
                                            self.view.extract_checkbox.isChecked()))
 
 
-class ReportGeneratorController:
-    def __init__(self, model, view):
-        self.view = view
+class ReportGeneratorController(BaseController):
+    def __init__(self, model: ReportModel, view):
+        super().__init__()
         self.model = model
+        self.view = view
         self.view.set_controller(self)
+        
+        # Load any existing data
+        self.load_existing_data()
+
+    def load_existing_data(self):
+        """Load existing data into the view."""
+        client_info = self.model.get_client_info()
+        sample_info = self.model.get_sample_info()
+        self.view.set_data(client_info, sample_info)
 
     def handle_preview(self):
-        self.generate_report("preview_report.docx")
-        self.view.update_status("Preview ready: preview_report.docx")
+        """Handle preview report generation."""
+        try:
+            # Update model with current view data
+            self._update_model_from_view()
+            
+            # Validate data
+            is_valid, errors = self.model.validate_report_data()
+            if not is_valid:
+                error_msg = "Please fix the following errors:\n" + "\n".join(errors)
+                self.view.show_error(error_msg)
+                return
+            
+            # Generate preview
+            self.model.refresh_data()
+            self.generate_report("preview_report.docx")
+            self.view.update_status("Preview ready: preview_report.docx")
+            
+            # Open the preview file
+            os.startfile("preview_report.docx")
+            
+        except Exception as e:
+            self.handle_error(e, "Failed to generate preview")
 
     def handle_export(self):
-        self.generate_report("final_report.docx")
-        self.view.update_status("Export complete: final_report.docx")
+        """Handle final report export."""
+        try:
+            # Update model with current view data
+            self._update_model_from_view()
+            
+            # Validate data
+            is_valid, errors = self.model.validate_report_data()
+            if not is_valid:
+                error_msg = "Please fix the following errors:\n" + "\n".join(errors)
+                self.view.show_error(error_msg)
+                return
+            
+            # Ask user for save location
+            file_name, _ = QFileDialog.getSaveFileName(
+                self.view,
+                "Save Report",
+                "",
+                "Word Documents (*.docx)"
+            )
+            
+            if file_name:
+                if not file_name.endswith('.docx'):
+                    file_name += '.docx'
+                
+                self.model.refresh_data()
+                self.generate_report(file_name)
+                self.view.update_status(f"Report exported successfully: {file_name}")
+                
+                # Ask if user wants to open the file
+                reply = QMessageBox.question(
+                    self.view,
+                    'Open Report',
+                    'Would you like to open the report?',
+                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+                )
+                
+                if reply == QMessageBox.StandardButton.Yes:
+                    os.startfile(file_name)
+                
+        except Exception as e:
+            self.handle_error(e, "Failed to export report")
+
+    def _update_model_from_view(self):
+        """Update model with current view data."""
+        client_info = self.view.get_client_info()
+        sample_info = self.view.get_sample_info()
+        
+        self.model.update_client_info(client_info)
+        self.model.update_sample_info(sample_info)
 
     def generate_report(self, filename="report.docx"):
-        doc = Document()
-        sections = doc.sections
-        for section in sections:
+        """Generate a report with real measurement data."""
+        try:
+            doc = Document()
+            
+            # Set up document margins
+            self._setup_document_margins(doc)
+            
+            # Add header with logo and contact info
+            self._add_header(doc)
+            
+            # Add report title and standard reference
+            self._add_title_section(doc)
+            
+            # Add client and test information
+            self._add_info_section(doc)
+            
+            # Add test samples and conditions
+            self._add_samples_and_conditions(doc)
+            
+            # Add measurement details and equipment
+            self._add_measurement_details(doc)
+            
+            # Add results section
+            self._add_results_section(doc)
+            
+            # Save the document
+            doc.save(filename)
+            
+        except Exception as e:
+            raise Exception(f"Failed to generate report: {str(e)}")
+
+    def _setup_document_margins(self, doc):
+        """Set up document margins."""
+        for section in doc.sections:
             section.top_margin = Cm(2.5)
             section.bottom_margin = Cm(2.5)
             section.left_margin = Cm(2.5)
             section.right_margin = Cm(2.5)
 
-        # Create a 3x2 table for the header (no borders)
+    def _add_header(self, doc):
+        """Add header with logo and contact information."""
         header_table = doc.add_table(rows=3, cols=2)
         header_table.alignment = WD_TABLE_ALIGNMENT.LEFT
         header_table.autofit = False
 
-        # Merge the first two cells for the university logo
+        # Add logo
         header_cell_1 = header_table.cell(0, 0)
         header_cell_1.merge(header_table.cell(2, 0))
+        logo_run = header_cell_1.paragraphs[0].add_run()
+        try:
+            logo_run.add_picture('logo1.png', width=Inches(2.0))
+        except Exception as e:
+            self.logger.warning(f"Could not load logo: {str(e)}")
 
-        # Add logo image
-        # Note: Replace 'logo.png' with the path to your actual logo file
-        logo_paragraph = header_cell_1.paragraphs[0]
-        logo_run = logo_paragraph.add_run()
-        logo_run.add_picture('logo1.png', width=Inches(2.0))  # Adjust width as needed
+        # Add contact info
+        self._add_contact_info(header_table)
+        self._remove_table_borders(header_table)
 
-        # Add department info in the second column
-        acoustics_info = header_table.cell(0, 1).paragraphs[0]
-        acoustics_info.alignment = WD_ALIGN_PARAGRAPH.RIGHT
-        acoustics_text = acoustics_info.add_run("VibroAcustica Acoustics Laboratories\n Joinville – SC, 89219-600, Brazil")
-        acoustics_text.font.name = 'Arial'
-        acoustics_text.font.size = Pt(8)
+    def _add_contact_info(self, table):
+        """Add contact information to header table."""
+        # Company info
+        info_cell = table.cell(0, 1).paragraphs[0]
+        info_cell.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+        info_run = info_cell.add_run("VibroAcustica Acoustics Laboratories\nJoinville – SC, 89219-600, Brazil")
+        self._format_run(info_run, size=8)
 
-        # Add phone number
-        phone_info = header_table.cell(1, 1).paragraphs[0]
-        phone_info.alignment = WD_ALIGN_PARAGRAPH.RIGHT
-        phone_text = phone_info.add_run("+55 (47) 3440-1787")
-        phone_text.font.name = 'Arial'
-        phone_text.font.size = Pt(8)
+        # Phone
+        phone_cell = table.cell(1, 1).paragraphs[0]
+        phone_cell.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+        phone_run = phone_cell.add_run("+55 (47) 3440-1787")
+        self._format_run(phone_run, size=8)
 
-        # Add page number
-        page_info = header_table.cell(2, 1).paragraphs[0]
-        page_info.alignment = WD_ALIGN_PARAGRAPH.RIGHT
-        page_text = page_info.add_run("Page 1 of 9")
-        page_text.font.name = 'Arial'
-        page_text.font.size = Pt(8)
+        # Page number
+        page_cell = table.cell(2, 1).paragraphs[0]
+        page_cell.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+        page_run = page_cell.add_run("Page 1 of 9")  # TODO: Implement dynamic page numbering
+        self._format_run(page_run, size=8)
 
-        # Make the table borders invisible
-        for row in header_table.rows:
-            for cell in row.cells:
-                for paragraph in cell.paragraphs:
-                    for run in paragraph.runs:
-                        if hasattr(run, 'font'):  # Skip runs that don't have font attribute (like image runs)
-                            run.font.name = 'Arial'
-                # Remove borders more simply
-                cell._element.tcPr.tcBorders = None
+    def _add_title_section(self, doc):
+        """Add report title and standard reference."""
+        # Add spacing
+        for _ in range(3):
+            doc.add_paragraph()
 
-        # Add some vertical space
-        doc.add_paragraph()
-        doc.add_paragraph()
-        doc.add_paragraph()
+        # Report title
+        title = doc.add_paragraph()
+        title.alignment = WD_ALIGN_PARAGRAPH.LEFT
+        title_run = title.add_run("LABORATORY TEST REPORT")
+        self._format_run(title_run, size=12, bold=True, color=RGBColor(220, 0, 0))
 
-        # Add the LABORATORY TEST REPORT heading
-        lab_report_heading = doc.add_paragraph()
-        lab_report_heading.alignment = WD_ALIGN_PARAGRAPH.LEFT
-        lab_report_text = lab_report_heading.add_run("LABORATORY TEST REPORT")
-        lab_report_text.font.name = 'Arial'
-        lab_report_text.font.size = Pt(12)
-        lab_report_text.font.bold = True
-        lab_report_text.font.color.rgb = RGBColor(220, 0, 0)
+        # Standard reference
+        standard = doc.add_paragraph()
+        standard.alignment = WD_ALIGN_PARAGRAPH.LEFT
+        standard_run = standard.add_run(
+            "BS EN ISO 10534-2: 2001. DETERMINATION OF SOUND ABSORPTION COEFFICIENT\n"
+            "IN IMPEDANCE TUBES. TRANSFER-FUNCTION METHOD."
+        )
+        self._format_run(standard_run, size=10, bold=True, color=RGBColor(220, 0, 0))
 
-        # Add the standard reference
-        standard_ref = doc.add_paragraph()
-        standard_ref.alignment = WD_ALIGN_PARAGRAPH.LEFT
-        standard_text = standard_ref.add_run("BS EN ISO 10534-2: 2001. DETERMINATION OF SOUND ABSORPTION COEFFICIENT\nIN IMPEDANCE TUBES. TRANSFER-FUNCTION METHOD.")
-        standard_text.font.name = 'Arial'
-        standard_text.font.size = Pt(10)
-        standard_text.font.bold = True
-        standard_text.font.color.rgb = RGBColor(220, 0, 0)
+    def _add_info_section(self, doc):
+        """Add client and test information section."""
+        # Add spacing
+        for _ in range(2):
+            doc.add_paragraph()
 
-        # Add vertical space
-        doc.add_paragraph()
-        doc.add_paragraph()
+        metadata = self.model.get_report_metadata()
+        client_info = metadata['client_info']
 
-        # Create a table for client and product info
-        info_table = doc.add_table(rows=4, cols=2)
-        info_table.autofit = False
+        info_table = self._create_info_table(doc, client_info)
+        self._remove_table_borders(info_table)
 
-        # Set column widths
-        for cell in info_table.columns[0].cells:
-            cell.width = Cm(9)
-        for cell in info_table.columns[1].cells:
-            cell.width = Cm(9)
-
-        # Client info
-        client_label = info_table.cell(0, 0).paragraphs[0].add_run("CLIENT:")
-        client_label.font.name = 'Arial'
-        client_label.font.size = Pt(10)
-        client_label.font.bold = True
-
-        client_info = info_table.cell(0, 1).paragraphs[0].add_run("Client")
-        client_info.font.name = 'Arial'
-        client_info.font.size = Pt(10)
-
-        # Product info
-        product_label = info_table.cell(1, 0).paragraphs[0].add_run("Purchase Order No.:")
-        product_label.font.name = 'Arial'
-        product_label.font.size = Pt(10)
-        product_label.font.bold = True
-
-        product_info = info_table.cell(1, 1).paragraphs[0].add_run("")
-        product_info.font.name = 'Arial'
-        product_info.font.size = Pt(10)
-
-        # Test date
-        test_date_label = info_table.cell(2, 0).paragraphs[0].add_run("TEST DATE:")
-        test_date_label.font.name = 'Arial'
-        test_date_label.font.size = Pt(10)
-        test_date_label.font.bold = True
-
-        test_date_info = info_table.cell(2, 1).paragraphs[0].add_run(str(date.today()))
-        test_date_info.font.name = 'Arial'
-        test_date_info.font.size = Pt(10)
-
-        # Add a blank row for spacing
-        info_table.cell(3, 0).text = ""
-        info_table.cell(3, 1).text = ""
-
-        # Make the table borders invisible
-        for row in info_table.rows:
-            for cell in row.cells:
-                cell._element.tcPr.tcBorders = None
-
-        # Add test report number and date of issue in a table
-        report_info_table = doc.add_table(rows=1, cols=2)
-        report_info_table.autofit = False
-
-        # Set column widths
-        for cell in report_info_table.columns[0].cells:
-            cell.width = Cm(9)
-        for cell in report_info_table.columns[1].cells:
-            cell.width = Cm(9)
-
-        # Test Report No.
-        report_num_label = report_info_table.cell(0, 0).paragraphs[0].add_run("TEST REPORT No.: ")
-        report_num_label.font.name = 'Arial'
-        report_num_label.font.size = Pt(10)
-        report_num_label.font.bold = True
-
-        report_num = report_info_table.cell(0, 0).paragraphs[0].add_run("Test No")
-        report_num.font.name = 'Arial'
-        report_num.font.size = Pt(10)
-
-        # Date of Issue
-        date_issue_label = report_info_table.cell(0, 1).paragraphs[0].add_run("DATE OF ISSUE: ")
-        date_issue_label.font.name = 'Arial'
-        date_issue_label.font.size = Pt(10)
-        date_issue_label.font.bold = True
-
-        date_issue = report_info_table.cell(0, 1).paragraphs[0].add_run(str(date.today()))
-        date_issue.font.name = 'Arial'
-        date_issue.font.size = Pt(10)
-
-        # Make the table borders invisible
-        for row in report_info_table.rows:
-            for cell in row.cells:
-                cell._element.tcPr.tcBorders = None
-
-        # Add signature section
-        doc.add_paragraph()
-        signature_table = doc.add_table(rows=2, cols=2)
-        signature_table.autofit = False
-
-        # Add "Signed:" text
-        signed_text = signature_table.cell(0, 0).paragraphs[0].add_run("Executor: ")
-        signed_text.font.name = 'Arial'
-        signed_text.font.size = Pt(10)
-        signed_text.font.bold = True
-
-
-        # Add Supervisor
-        name1 = signature_table.cell(1, 0).paragraphs[0].add_run("Pessoa 1\n")
-        name1.font.name = 'Arial'
-        name1.font.size = Pt(10)
-
-        # Add Supervisor
-        title1 = signature_table.cell(1, 0).paragraphs[0].add_run("Cargo 1")
-        title1.font.name = 'Arial'
-        title1.font.size = Pt(10)
-        title1.font.color.rgb = RGBColor(220, 0, 0)
-
-        # Make the table borders invisible
-        for row in signature_table.rows:
-            for cell in row.cells:
-                cell._element.tcPr.tcBorders = None
-
-                # Helper function to create styled headings
-        def add_styled_heading(doc, text, level):
-            heading = doc.add_paragraph()
-            heading_text = heading.add_run(text)
-            heading_text.font.name = 'Arial'
-            
-            if level == 1:
-                heading_text.font.size = Pt(12)
-                heading_text.font.bold = True
-            else:
-                heading_text.font.size = Pt(11)
-                heading_text.font.bold = True
-            
-            return heading
-
-        # Helper function to create styled paragraphs
-        def add_styled_paragraph(doc, text):
-            para = doc.add_paragraph()
-            para_text = para.add_run(text)
-            para_text.font.name = 'Arial'
-            para_text.font.size = Pt(10)
-            return para
-
-        # Helper function to create styled bullet points
-        def add_styled_bullet_point(doc, text):
-            para = doc.add_paragraph(style='List Bullet')
-            para_text = para.add_run(text)
-            para_text.font.name = 'Arial'
-            para_text.font.size = Pt(10)
-            return para
-
-        # Add page break before starting content
+    def _add_samples_and_conditions(self, doc):
+        """Add test samples and conditions section."""
         doc.add_page_break()
-
-        # 1. TEST SAMPLES AND CONDITIONS
-        add_styled_heading(doc, "1. TEST SAMPLES AND CONDITIONS", 1)
-
-        # 1.1. Description of Test Samples
-        add_styled_heading(doc, "1.1. Description of Test Samples", 2)
-        add_styled_paragraph(doc, "Product Identification: {self.model.product_name}")
-        add_styled_paragraph(doc, "Manufacturer: {self.model.manufacturer}")
-        add_styled_paragraph(doc, "Description: {self.model.description}")
-        add_styled_paragraph(doc, "Layers: {self.model.layers}")
-        add_styled_paragraph(doc, "Sample Conditions: {self.model.sample_conditions}")
-        add_styled_paragraph(doc, "Mounting: {self.model.mounting_description}")
-
-        # 1.2. Test Conditions
-        add_styled_heading(doc, "1.2. Test Conditions", 2)
-        add_styled_paragraph(doc, "Temperature: {self.model.temperature} °C")
-        add_styled_paragraph(doc, "Humidity: {self.model.humidity} %")
-        add_styled_paragraph(doc, "Pressure: {self.model.pressure} hPa")
-
-        # 2. MEASUREMENT DETAILS
-        add_styled_heading(doc, "2. MEASUREMENT DETAILS", 1)
-
-        # 2.1. Equipment
-        add_styled_heading(doc, "2.1. Equipment", 2)
-        for item in range(2):  # self.model.equipment:
-            add_styled_bullet_point(doc, "Equipment {item+1}: Serial {1000+item}")
-
-        # 2.2. Procedure
-        add_styled_heading(doc, "2.2. Procedure", 2)
-        add_styled_paragraph(doc, "Sound absorption measurements were conducted according to the standard BS EN ISO 10534-2: 2001 using impedance tubes.")
-        it_text = '''For this particular test, a B&K Type 4206 Impedance Tube was used (Figure 2). This 
-                    impedance tube is in accordance with BS EN ISO 10534-2 and consists of an adjustable signal 
-                    filter, a loudspeaker, a sound propagation tube, microphone holders, a large sample tube (100 
-                    mm diameter), and a small sample tube (29 mm diameter). Each sample tube contains an 
-                    adjustable plunger for positioning the test sample and creating air gaps behind it if desired. '''
-
-        add_styled_paragraph(doc, it_text)
-
-        # Add image centered
-        img_paragraph = doc.add_paragraph()
-        img_paragraph.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
-        img_run = img_paragraph.add_run()
-        img_run.add_picture('it.png', width=Inches(4.5))  # Adjust path and size as needed
-
-        # Add caption below image
-        caption_paragraph = doc.add_paragraph("Figure 1: B&K Type 4206 Impedance Tube Setup")
-        caption_paragraph.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
-        caption_run = caption_paragraph.runs[0]
-        caption_run.font.name = 'Arial'
-        caption_run.font.size = Pt(10)
-        caption_run.italic = True
-
-        pt = """The test sample was mounted at 
-                the end of the impedance tube by means of the sample holder, which is assumed to behave as 
-                a rigid termination, with no gaps between the sample and the termination. The sample holder 
-                was then mounted to the end of the tube and the microphones placed at measurement positions 
-                following the characteristics described in Section 2.1 for samples with 29mm and 100mm 
-                diameter. The impedance tube was mounted vertically on the wall, to allow the thin fabric to be 
-                placed on top of the melamine foam surface. Finally, a broadband stationary random signal 
-                was generated from B&K Pulse through a power amplifier and into the loudspeaker mounted 
-                in the impedance tube. 
-                For each one of the test samples, the normal incidence sound absorption coefficient was then 
-                determined by decomposing the incident and reflected components of the sound field within 
-                the tube, which were measured by the two separated microphones along the tube length. The 
-                incident and reflected components of the sound pressure level, at the two microphone positions, 
-                were then used to calculate three frequency response functions, from which the reflection and 
-                absorption coefficients can be calculated."""
         
-        add_styled_paragraph(doc, pt)
+        # Get real data from model
+        test_conditions = self.model.report_data['test_conditions']
+        sample_info = self.model.report_data['sample_info']
+        
+        self._add_styled_heading(doc, "1. TEST SAMPLES AND CONDITIONS", 1)
+        
+        # Samples section
+        self._add_styled_heading(doc, "1.1. Description of Test Samples", 2)
+        for key, value in sample_info.items():
+            self._add_styled_paragraph(doc, f"{key}: {value}")
+        
+        # Conditions section
+        self._add_styled_heading(doc, "1.2. Test Conditions", 2)
+        if test_conditions:
+            temp = test_conditions.get('temp', {})
+            self._add_styled_paragraph(doc, f"Temperature: {temp.get('value', 'N/A')} {temp.get('unit', '°C')}")
+            self._add_styled_paragraph(doc, f"Humidity: {test_conditions.get('humi', {}).get('value', 'N/A')} %")
+            pressure = test_conditions.get('pressure', {})
+            self._add_styled_paragraph(doc, f"Pressure: {pressure.get('value', 'N/A')} {pressure.get('unit', 'hPa')}")
 
-        doc.add_paragraph()
+    def _add_measurement_details(self, doc):
+        """Add measurement details and equipment section."""
+        self._add_styled_heading(doc, "2. MEASUREMENT DETAILS", 1)
+        
+        # Equipment section
+        self._add_styled_heading(doc, "2.1. Equipment", 2)
+        equipment_list = self.model.report_data['equipment']
+        self._add_equipment_table(doc, equipment_list)
+        
+        # Procedure section
+        self._add_styled_heading(doc, "2.2. Procedure", 2)
+        self._add_procedure_content(doc)
+        
+        # Calculations section
+        self._add_styled_heading(doc, "2.3. Calculations", 2)
+        self._add_calculations_content(doc)
 
-        def set_cell_background(cell, color):
-            """Set background shading for a table cell (color as hex, e.g., 'C00000')"""
-            tc = cell._tc
-            tcPr = tc.get_or_add_tcPr()
-            shd = OxmlElement('w:shd')
-            shd.set(qn('w:fill'), color)
-            tcPr.append(shd)
+    def _add_results_section(self, doc):
+        """Add results section with real measurement data."""
+        self._add_styled_heading(doc, "3. RESULTS", 1)
+        
+        # Get real absorption data
+        absorption_data = self.model.get_absorption_data()
+        
+        if absorption_data:
+            # Create results table
+            table = doc.add_table(rows=1, cols=4)
+            table.style = 'Table Grid'
+            
+            # Add headers
+            headers = ["Frequency\nHz", "αₙ (tube Ø100 mm)", "αₙ (tube Ø29 mm)", "αₙ (combined)"]
+            for idx, text in enumerate(headers):
+                cell = table.cell(0, idx)
+                para = cell.paragraphs[0]
+                para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                run = para.add_run(text)
+                self._format_run(run, size=10)
+                cell.vertical_alignment = WD_ALIGN_PARAGRAPH.CENTER
+            
+            # Add data rows
+            for freq, alpha100, alpha29, combined in absorption_data:
+                row_cells = table.add_row().cells
+                values = [freq, alpha100, alpha29, combined]
+                
+                for idx, val in enumerate(values):
+                    text = "-" if val == 0.00 else f"{val:.2f}" if isinstance(val, float) else str(val)
+                    para = row_cells[idx].paragraphs[0]
+                    para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                    run = para.add_run(text)
+                    self._format_run(run, size=10)
+            
+            # Add graph if available
+            self._add_absorption_graph(doc)
+        else:
+            self._add_styled_paragraph(doc, "No measurement data available.")
 
-        add_styled_paragraph(doc, "A full list of the equipment used during the tests is presented in Table 1 below.")
+    def _format_run(self, run, size=10, bold=False, color=None):
+        """Format a text run with consistent styling."""
+        run.font.name = 'Arial'
+        run.font.size = Pt(size)
+        run.font.bold = bold
+        if color:
+            run.font.color.rgb = color
 
-        # Equipment list as (Name, Serial)
-        equipment_list = [
-            ("DewesoftX", "2477213 / PULSE N.2"),
-            ("Impedance Tube Type 4206", "2681869"),
-            ("Desktop PC with Software and Peripheral Equipment", "21329"),
-            ("Two ¼” Condenser Microphones Type 4187", "2677390 & 2677391"),
-            ("Power Amplifier", "129003364"),
-        ]
+    def _remove_table_borders(self, table):
+        """Remove borders from a table."""
+        for row in table.rows:
+            for cell in row.cells:
+                cell._element.tcPr.tcBorders = None
 
-        # Create table with 2 columns
+    def _add_styled_heading(self, doc, text, level):
+        """Add a styled heading to the document."""
+        heading = doc.add_paragraph()
+        heading_text = heading.add_run(text)
+        self._format_run(heading_text, size=12 if level == 1 else 11, bold=True)
+        return heading
+
+    def _add_styled_paragraph(self, doc, text):
+        """Add a styled paragraph to the document."""
+        para = doc.add_paragraph()
+        para_text = para.add_run(text)
+        self._format_run(para_text, size=10)
+        return para
+
+    def _add_equipment_table(self, doc, equipment_list):
+        """Add equipment table with real data."""
         table = doc.add_table(rows=1, cols=2)
         table.style = 'Table Grid'
-
-        # Header row
-        hdr_cells = table.rows[0].cells
-        hdr_cells[0].text = "Equipment"
-        hdr_cells[1].text = "Serial/Ref No."
-
-        for cell in hdr_cells:
-            para = cell.paragraphs[0]
-            para.alignment = WD_ALIGN_PARAGRAPH.CENTER
-            run = para.runs[0]
-            run.font.name = 'Arial'
-            run.font.size = Pt(10)
-            run.font.bold = True
-            run.font.color.rgb = RGBColor(255, 255, 255)  # White text
-
-            set_cell_background(cell, "C00000")  # Red background
-
-        # Add equipment data
-        for name, serial in equipment_list:
-            row_cells = table.add_row().cells
-            for idx, text in enumerate((name, serial)):
-                para = row_cells[idx].paragraphs[0]
-                para.alignment = WD_ALIGN_PARAGRAPH.LEFT
-                run = para.add_run(text)
-                run.font.name = 'Arial'
-                run.font.size = Pt(10)
-
-        # Caption
-        caption = doc.add_paragraph("Table 1: List of equipment.")
-        caption.paragraph_format.alignment = WD_ALIGN_PARAGRAPH.LEFT
-        caption.runs[0].font.name = 'Arial'
-        caption.runs[0].font.size = Pt(9)
-        caption.runs[0].italic = True
-
-        # 2.3. Calculations
-        add_styled_heading(doc, "2.3. Calculations", 2)
-        add_styled_paragraph(doc, "Absorption coefficient α is calculated from reflection coefficient R:")
         
-        # Create a styled quote
-        quote_para = doc.add_paragraph()
-        quote_run = quote_para.add_run("α = 1 - |R|²")
-        quote_run.font.name = 'Arial'
-        quote_run.font.size = Pt(10)
-        quote_run.font.italic = True
-        quote_para.paragraph_format.left_indent = Cm(1.0)
-        
-        add_styled_paragraph(doc, "R is derived from the measured transfer function H₁₂ of the two microphones.")
-
-        # 3. RESULTS
-        add_styled_heading(doc, "3. RESULTS", 1)
-
-        table = doc.add_table(rows=1, cols=4)
-        table.style = 'Table Grid'
-
-        # Set header text
-        headers = ["Frequency\nHz", "αₙ (tube Ø100 mm)", "αₙ (tube Ø29 mm)", "αₙ (combined)"]
-        for idx, text in enumerate(headers):
+        # Header
+        for idx, text in enumerate(["Equipment", "Serial/Ref No."]):
             cell = table.cell(0, idx)
             para = cell.paragraphs[0]
             para.alignment = WD_ALIGN_PARAGRAPH.CENTER
             run = para.add_run(text)
-            run.font.name = 'Arial'
-            run.font.size = Pt(10)
-            cell.vertical_alignment = WD_ALIGN_PARAGRAPH.CENTER
-
-        # Example data - replace with real self.model.results
-        example_data = [
-            (80, 0.07, 0.00, 0.07),
-            (100, 0.08, 0.00, 0.08),
-            (125, 0.30, 0.30, 0.30),
-            (160, 0.38, 0.45, 0.39),
-            (200, 0.50, 0.55, 0.51),
-            # Add more as needed...
-        ]
-
-        # Add data rows
-        for freq, alpha100, alpha29, combined in example_data:
+            self._format_run(run, size=10, bold=True, color=RGBColor(255, 255, 255))
+            self._set_cell_background(cell, "C00000")
+        
+        # Data rows
+        for equipment in equipment_list:
             row_cells = table.add_row().cells
-            values = [freq, alpha100, alpha29, combined]
-
-            for idx, val in enumerate(values):
-                text = "-" if val == 0.00 else f"{val:.2f}" if isinstance(val, float) else str(val)
+            for idx, text in enumerate([equipment['name'], equipment['serial']]):
                 para = row_cells[idx].paragraphs[0]
-                para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                para.alignment = WD_ALIGN_PARAGRAPH.LEFT
                 run = para.add_run(text)
-                run.font.name = 'Arial'
-                run.font.size = Pt(10)
+                self._format_run(run, size=10)
 
-        # Add image acoustic abs coef
-        img_paragraph = doc.add_paragraph()
-        img_paragraph.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
-        img_run = img_paragraph.add_run()
-        img_run.add_picture('ac.png', width=Inches(4.5))  # Adjust path and size as needed
+    def _set_cell_background(self, cell, color):
+        """Set background color for a table cell."""
+        tc = cell._tc
+        tcPr = tc.get_or_add_tcPr()
+        shd = OxmlElement('w:shd')
+        shd.set(qn('w:fill'), color)
+        tcPr.append(shd)
 
-        # Add caption below image
-        caption_paragraph = doc.add_paragraph("Figure 1: Absorption Coeficent vs Frequency")
-        caption_paragraph.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
-        caption_run = caption_paragraph.runs[0]
-        caption_run.font.name = 'Arial'
-        caption_run.font.size = Pt(10)
-        caption_run.italic = True
+    def _add_absorption_graph(self, doc):
+        """Add absorption coefficient graph if available."""
+        try:
+            img_paragraph = doc.add_paragraph()
+            img_paragraph.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
+            img_run = img_paragraph.add_run()
+            img_run.add_picture('ac.png', width=Inches(4.5))
+            
+            # Add caption
+            caption = doc.add_paragraph("Figure 2: Absorption Coefficient vs Frequency")
+            caption.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
+            caption_run = caption.runs[0]
+            self._format_run(caption_run, size=10)
+            caption_run.italic = True
+        except Exception as e:
+            self.logger.warning(f"Could not add absorption graph: {str(e)}")
 
-        # Save the document
-        doc.save(filename)
+class DocumentationController(BaseController):
+    def __init__(self, model, view):
+        super().__init__()
+        self.model = model
+        self.view = view
+        self.view.set_controller(self)
+        
+        # Load initial documentation
+        self.load_documentation()
+        
+        # Connect signals
+        self.view.section_list.currentItemChanged.connect(self.on_section_changed)
+        
+    def load_documentation(self):
+        """Load all documentation sections into the view."""
+        try:
+            sections = self.model.get_all_sections()
+            self.view.clear_sections()
+            for section_name, section_data in sections.items():
+                self.view.add_section(section_name, section_data['title'])
+        except Exception as e:
+            self.handle_error(e, "Failed to load documentation")
+            
+    def on_section_changed(self, current, previous):
+        """Handle section selection change."""
+        if current:
+            try:
+                section_name = current.data(Qt.ItemDataRole.UserRole)
+                section = self.model.get_documentation_section(section_name)
+                if section:
+                    self.view.display_section(section['title'], section['content'])
+            except Exception as e:
+                self.handle_error(e, "Failed to load section")
+                
+    def update_section(self, section_name, title, content):
+        """Update a documentation section."""
+        try:
+            if self.model.update_section(section_name, title, content):
+                self.load_documentation()  # Refresh view
+                return True
+            else:
+                self.handle_error("Section not found", "Update Failed")
+                return False
+        except Exception as e:
+            self.handle_error(e, "Failed to update section")
+            return False
+
+class WarningsController(BaseController):
+    def __init__(self, model: WarningsModel, view):
+        super().__init__()
+        self.model = model
+        self.view = view
+        self.view.set_controller(self)
+
+    def save_warning_settings(self):
+        """Save warning settings from view to model."""
+        try:
+            # Get settings from view
+            settings = self.view.get_warning_settings()
+            
+            # Validate settings
+            validation_errors = self._validate_settings(settings)
+            if validation_errors:
+                self.view.show_error_message("\n".join(validation_errors))
+                return
+            
+            # Save to model
+            success = self.model.save_warning_settings(
+                snr=float(settings['snr']),
+                auto_spec=float(settings['auto_spec']),
+                calib=float(settings['calib'])
+            )
+            
+            if success:
+                self.view.show_success_message("Warning settings saved successfully!")
+            else:
+                self.view.show_error_message("Failed to save warning settings")
+                
+        except Exception as e:
+            self.handle_error(e, "Failed to save warning settings")
+
+    def load_warning_settings(self):
+        """Load warning settings from model to view."""
+        try:
+            settings = self.model.get_warning_settings()
+            self.view.set_warning_settings(settings)
+        except Exception as e:
+            self.handle_error(e, "Failed to load warning settings")
+
+    def _validate_settings(self, settings):
+        """Validate warning settings."""
+        errors = []
+        
+        # Check for empty values
+        for field, value in settings.items():
+            if not value.strip():
+                errors.append(f"{field.replace('_', ' ').title()} is required")
+                continue
+            
+            # Check numeric values
+            try:
+                float_val = float(value)
+                # Add specific validation rules
+                if field == 'snr' and float_val < 0:
+                    errors.append("Signal-to-Noise Ratio must be positive")
+            except ValueError:
+                errors.append(f"{field.replace('_', ' ').title()} must be a valid number")
+        
+        return errors
 
 class MainAppController:
     def __init__(self, main_app_view):
@@ -890,6 +954,8 @@ class MainAppController:
         self.processing_controller = self.create_post_processing_controller(self.measurements_controller.signals)
         self.results_controller = self.create_results_controller(self.measurements_controller.signals)
         self.report_controller = self.create_report_controller()
+        self.documentation_controller = self.create_documentation_controller()
+        self.warnings_controller = self.create_warnings_controller()
 
     def create_tube_setup_controller(self):
         tube_setup_model = TubeSetupModel(self.data_store)  # Assuming the TubeSetupModel is defined earlier
@@ -913,6 +979,18 @@ class MainAppController:
         report_model = ReportModel(self.data_store)
         report_view = self.main_app_view.export_tab
         controller = ReportGeneratorController(report_model, report_view)
+        return controller
+
+    def create_documentation_controller(self):
+        documentation_model = DocumentationModel(self.data_store)
+        documentation_view = self.main_app_view.documentation_tab
+        controller = DocumentationController(documentation_model, documentation_view)
+        return controller
+
+    def create_warnings_controller(self):
+        warnings_model = WarningsModel(self.data_store)
+        warnings_view = self.main_app_view.warnings_tab
+        controller = WarningsController(warnings_model, warnings_view)
         return controller
 
     def create_measurements_controller(self):
