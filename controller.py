@@ -613,7 +613,7 @@ class ReportGeneratorController(BaseController):
         header_cell_1.merge(header_table.cell(2, 0))
         logo_run = header_cell_1.paragraphs[0].add_run()
         try:
-            logo_run.add_picture('logo1.png', width=Inches(2.0))
+            logo_run.add_picture('logo2.png', width=Inches(2.0))
         except Exception as e:
             self.logger.warning(f"Could not load logo: {str(e)}")
 
@@ -673,6 +673,33 @@ class ReportGeneratorController(BaseController):
 
         info_table = self._create_info_table(doc, client_info)
         self._remove_table_borders(info_table)
+
+    def _create_info_table(self, doc, client_info):
+        """Create and populate the information table with client data."""
+        table = doc.add_table(rows=4, cols=2)
+        table.style = 'Table Grid'
+        
+        # Client Information
+        self._add_table_row(table, 0, "Client:", client_info.get('name', 'N/A'))
+        self._add_table_row(table, 1, "Test Reference:", client_info.get('test_ref', 'N/A'))
+        self._add_table_row(table, 2, "Date:", client_info.get('date', str(date.today())))
+        self._add_table_row(table, 3, "Report No:", client_info.get('report_no', 'N/A'))
+        
+        return table
+
+    def _add_table_row(self, table, row, label, value):
+        """Add a row to the table with label and value."""
+        # Label cell
+        label_cell = table.cell(row, 0)
+        label_para = label_cell.paragraphs[0]
+        label_run = label_para.add_run(label)
+        self._format_run(label_run, size=10, bold=True)
+        
+        # Value cell
+        value_cell = table.cell(row, 1)
+        value_para = value_cell.paragraphs[0]
+        value_run = value_para.add_run(str(value))
+        self._format_run(value_run, size=10)
 
     def _add_samples_and_conditions(self, doc):
         """Add test samples and conditions section."""
@@ -829,6 +856,26 @@ class ReportGeneratorController(BaseController):
             caption_run.italic = True
         except Exception as e:
             self.logger.warning(f"Could not add absorption graph: {str(e)}")
+
+    def _add_procedure_content(self, doc):
+        """Add procedure content to the report."""
+        para = doc.add_paragraph()
+        para.add_run("Describe the measurement procedure here.").italic = True
+
+    def _add_calculations_content(self, doc):
+        """Add calculations content to the report."""
+        # Add calculation methods and formulas
+        calculations = [
+            "The sound absorption coefficient (α) is calculated using the transfer function method according to ISO 10534-2:2001.",
+            "The transfer function (H12) between the two microphone positions is measured and used to calculate the reflection coefficient (R).",
+            "The absorption coefficient is then calculated as: α = 1 - |R|²",
+            "The measurements are performed in two impedance tubes with different diameters (29 mm and 100 mm) to cover the frequency range from 100 Hz to 6.4 kHz."
+        ]
+        
+        for calc in calculations:
+            para = doc.add_paragraph()
+            para.add_run(calc)
+            self._format_run(para.runs[0], size=10)
 
 class DocumentationController(BaseController):
     def __init__(self, model, view):

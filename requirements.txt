@@ -1,6 +1,5 @@
-pywin32
-sys
-pyQt6
-pandas
-docx
-numpy
+pywin32==306
+PyQt6==6.6.1
+pandas==2.2.0
+python-docx==1.1.0
+numpy==1.26.3

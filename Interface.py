@@ -4,7 +4,8 @@ import os
 from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, QTabWidget,
                              QLabel, QLineEdit, QPushButton, QGridLayout, QListWidget,
                              QComboBox, QTextBrowser, QMessageBox, QStatusBar, QHBoxLayout, QFrame,
-                             QFileDialog, QProgressBar, QCheckBox, QTabWidget, QListWidgetItem, QSizePolicy, QGroupBox, QAbstractItemView)  # Importação corrigida
+                             QFileDialog, QProgressBar, QCheckBox, QTabWidget, QListWidgetItem, QSizePolicy, 
+                             QGroupBox, QAbstractItemView, QFormLayout)  # Importação corrigida
 from PyQt6.QtGui import QFont, QDoubleValidator, QColor
 from PyQt6.QtCore import Qt
 
@@ -372,7 +373,7 @@ class QReportViewTab(QWidget):
         self.test_date = QLineEdit()
         self.test_requester = QLineEdit()
         self.test_executor = QLineEdit()
-        self.test_supervisor = QLineEdit()
+        #self.test_supervisor = QLineEdit()
         
         # Add fields to layout
         row = 0
@@ -385,7 +386,7 @@ class QReportViewTab(QWidget):
             ("Test Date*:", self.test_date),
             ("Test Requester:", self.test_requester),
             ("Test Executor*:", self.test_executor),
-            ("Test Supervisor:", self.test_supervisor)
+            #("Test Supervisor:", self.test_supervisor)
         ]:
             client_layout.addWidget(QLabel(label), row, 0)
             client_layout.addWidget(widget, row, 1)
@@ -403,7 +404,7 @@ class QReportViewTab(QWidget):
         self.description = QLineEdit()
         self.layers = QLineEdit()
         self.conditions = QLineEdit()
-        self.mounting = QLineEdit()
+        #self.mounting = QLineEdit()
         
         # Add fields to layout
         row = 0
@@ -413,7 +414,7 @@ class QReportViewTab(QWidget):
             ("Description:", self.description),
             ("Layers:", self.layers),
             ("Conditions:", self.conditions),
-            ("Mounting:", self.mounting)
+            #("Mounting:", self.mounting)
         ]:
             sample_layout.addWidget(QLabel(label), row, 0)
             sample_layout.addWidget(widget, row, 1)
@@ -463,8 +464,8 @@ class QReportViewTab(QWidget):
             'report_number': self.report_number.text(),
             'test_date': self.test_date.text(),
             'test_requester': self.test_requester.text(),
-            'test_executor': self.test_executor.text(),
-            'test_supervisor': self.test_supervisor.text()
+            'test_executor': self.test_executor.text()
+            #'test_supervisor': self.test_supervisor.text()
         }
 
     def get_sample_info(self) -> dict:
@@ -474,8 +475,8 @@ class QReportViewTab(QWidget):
             'manufacturer': self.manufacturer.text(),
             'description': self.description.text(),
             'layers': self.layers.text(),
-            'conditions': self.conditions.text(),
-            'mounting': self.mounting.text()
+            'conditions': self.conditions.text()
+            #'mounting': self.mounting.text()
         }
 
     def set_data(self, client_info: dict, sample_info: dict):
@@ -489,7 +490,7 @@ class QReportViewTab(QWidget):
         self.test_date.setText(str(client_info.get('test_date', '')))
         self.test_requester.setText(client_info.get('test_requester', ''))
         self.test_executor.setText(client_info.get('test_executor', ''))
-        self.test_supervisor.setText(client_info.get('test_supervisor', ''))
+        #self.test_supervisor.setText(client_info.get('test_supervisor', ''))
         
         # Set sample info
         self.product_name.setText(sample_info.get('product_name', ''))
@@ -497,7 +498,7 @@ class QReportViewTab(QWidget):
         self.description.setText(sample_info.get('description', ''))
         self.layers.setText(sample_info.get('layers', ''))
         self.conditions.setText(sample_info.get('conditions', ''))
-        self.mounting.setText(sample_info.get('mounting', ''))
+        #self.mounting.setText(sample_info.get('mounting', ''))
 
     def update_status(self, message: str):
         """Update status message."""
@@ -1205,7 +1206,7 @@ class QReportGeneratorTab(QWidget):
         
         # Sample Information Group
         sample_group = QGroupBox("Sample Information")
-        sample_layout = QGridLayout()
+        sample_layout = QFormLayout()  # Use QFormLayout instead of QGridLayout
         
         # Create input fields for sample info
         self.product_name = QLineEdit()
@@ -1216,7 +1217,6 @@ class QReportGeneratorTab(QWidget):
         self.mounting = QLineEdit()
         
         # Add fields to layout
-        row = 0
         for label, widget in [
             ("Product Name:", self.product_name),
             ("Manufacturer:", self.manufacturer),
@@ -1225,10 +1225,8 @@ class QReportGeneratorTab(QWidget):
             ("Conditions:", self.conditions),
             ("Mounting:", self.mounting)
         ]:
-            sample_layout.addWidget(QLabel(label), row, 0)
-            sample_layout.addWidget(widget, row, 1)
-            row += 1
-            
+            sample_layout.addRow(label, widget)
+                
         sample_group.setLayout(sample_layout)
         
         # Add groups to main layout
