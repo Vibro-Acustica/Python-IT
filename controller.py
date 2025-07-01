@@ -6,7 +6,6 @@ from model import Dewesoft, TubeSetupModel, ResultsModel, MeasurementModel, Proc
 import matplotlib.pyplot as plt
 from PyQt6.QtGui import QPixmap
 from io import BytesIO
-from Interface import QResultsTab
 from PyQt6.QtCore import Qt, pyqtSignal
 from docx import Document
 from docx.shared import Inches, Pt, RGBColor
@@ -21,6 +20,7 @@ from lxml import etree
 from docx.oxml import OxmlElement
 from datetime import date
 import logging
+
 
 from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, QTabWidget,
                              QLabel, QLineEdit, QPushButton, QGridLayout, QListWidget,
@@ -61,10 +61,10 @@ class TubeSetupController:
         # Connect the view to the controller
         self.view.set_controller(self)
 
-    def save_measurements(self, data):
+    def save_measurements(self):
         try:
             # Save the data to the model
-            self.model.save_data(data)
+            self.model.set_data(self.view.get_input_data())
             # Show success message
             QMessageBox.information(self.view, "Success", "Tube setup measurements saved successfully!")
         except Exception as e:
@@ -78,21 +78,23 @@ class TubeSetupController:
         self.view.tube_diameter.clear()
 
 class SamplesController:
-    def __init__(self, model : SamplesModel, view):
+    def __init__(self, model : SamplesModel, view, signals=None):
         self.model = model  # TubeSetupModel, for example
         self.view = view
+        self.signals = signals or SamplesSignalEmitter()
         # Connect the view to the controller
         self.view.set_controller(self)
 
     def save_samples(self, data):
         try:
             self.model.save_sample(data)
+            self.signals.samples_updated.emit()  # Emit signal when sample is saved
             QMessageBox.information(self.view, "Success", "Sample data saved successfully!")
         except Exception as e:
             QMessageBox.critical(self.view, "Error", f"Failed to save sample: {str(e)}")
 
 class ResultsController:
-    def __init__(self, model : ResultsModel, view : QResultsTab, signals):
+    def __init__(self, model : ResultsModel, view, signals):
         self.model = model
         self.view = view
         self.view.set_controller(self)
@@ -176,8 +178,11 @@ class ResultsController:
 class MeasurementsSignalEmitter(QObject):
     measurement_results_updated = pyqtSignal()
 
+class SamplesSignalEmitter(QObject):
+    samples_updated = pyqtSignal()
+
 class MeasurementController():
-    def __init__(self, model : MeasurementModel, view):
+    def __init__(self, model : MeasurementModel, view, samples_signals=None):
         self.model = model
         self.view = view
         self.view.set_controller(self)
@@ -188,11 +193,14 @@ class MeasurementController():
         self.dewesoft.load_setup("C:\\Users\\jvv20\\Vibra\\DeweSoftData\\Setups\\test.dxs")
 
         self.signals = MeasurementsSignalEmitter()
+        
+        # Connect to samples signals if provided
+        if samples_signals:
+            samples_signals.samples_updated.connect(self.populate_samples)
             
         # Populate the view with initial data
         self.populate_samples()
         self.populate_results()
-
 
     def populate_samples(self):
         """Populates the QListWidget with available samples."""
@@ -993,6 +1001,9 @@ class MainAppController:
 
         self.data_store = DataStore()  # Shared storage
         
+        # Create signal emitters
+        self.samples_signals = SamplesSignalEmitter()
+        
         # Initialize controllers for each tab and connect them to views
         self.tube_setup_controller = self.create_tube_setup_controller()
         self.samples_controller = self.create_samples_controller()
@@ -1013,7 +1024,7 @@ class MainAppController:
     def create_samples_controller(self):
         samples_model = SamplesModel(self.data_store)
         samples_view = self.main_app_view.samples_tab
-        controller = SamplesController(samples_model, samples_view)
+        controller = SamplesController(samples_model, samples_view, self.samples_signals)
         return controller
 
     def create_test_conditions_controller(self):
@@ -1043,7 +1054,7 @@ class MainAppController:
     def create_measurements_controller(self):
         self.measurement_model = MeasurementModel(self.data_store)
         self.measurement_view = self.main_app_view.measurements_tab.measure_tab
-        measurement_controller = MeasurementController(self.measurement_model, self.measurement_view)
+        measurement_controller = MeasurementController(self.measurement_model, self.measurement_view, self.samples_signals)
         return measurement_controller
 
     def create_results_controller(self, signals):

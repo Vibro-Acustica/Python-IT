@@ -159,8 +159,8 @@ class TubeSetupModel:
         }
         self.data_store = data_store
 
-    def set_data(self, mic_spacing, mic1_sample, mic2_sample, tube_diameter):
-        self.data_store.add_tube_measurements(mic_spacing, diameter=tube_diameter, mic_to_source_1=mic1_sample, mic_to_source_2=mic2_sample)
+    def set_data(self, data):
+        self.data_store.add_tube_measurements(data['mic_spacing'], data['tube_diameter'], data['mic1_sample'], data['mic2_sample'])
 
 class ResultsModel:
     def __init__(self, data_store : DataStore):
@@ -504,10 +504,10 @@ class ResultsModel:
 class MeasurementModel:
     def __init__(self, data_store : DataStore):
         self.data_store = data_store
-        self.samples = ["Amostra_x", "Amostra_y"]  # Available samples
 
     def get_samples(self):
-        return self.samples
+        """Get all sample names from the data store."""
+        return list(self.data_store.samples.keys())
 
     def get_measurement_results(self):
         return self.data_store.get_results()
@@ -519,6 +519,10 @@ class MeasurementModel:
 class SamplesModel:
     def __init__(self,data_store : DataStore):
         self.data_store = data_store
+
+    def get_samples(self):
+        """Get all sample names from the data store."""
+        return list(self.data_store.samples.keys())
 
     def save_sample(self, sample):
         sample_name = sample["sample_name"]

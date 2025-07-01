@@ -9,6 +9,8 @@ from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, QT
 from PyQt6.QtGui import QFont, QDoubleValidator, QColor
 from PyQt6.QtCore import Qt
 
+from controller import TubeSetupController
+
 class PersistenceManager:
     @staticmethod
     def get_data_path():
@@ -546,8 +548,6 @@ class QMeasureTab(QWidget):
         measure_control_layout = QVBoxLayout()
 
         self.amostras_listbox = QListWidget()
-        self.amostras_listbox.addItem("Amostra_x")
-        self.amostras_listbox.addItem("Amostra_y")
         self.amostras_listbox.setStyleSheet("color : black")
         measure_control_layout.addWidget(QLabel("Samples List"))
         measure_control_layout.addWidget(self.amostras_listbox)
@@ -556,7 +556,6 @@ class QMeasureTab(QWidget):
         measure_control_layout.addWidget(self.start_measurement_button)
 
         self.resultados_listbox = QListWidget()
-        self.resultados_listbox.addItem("Resultado_x")
         self.resultados_listbox.setStyleSheet("color : black")
         measure_control_layout.addWidget(QLabel("Measurements Results"))
         measure_control_layout.addWidget(self.resultados_listbox)
@@ -797,17 +796,17 @@ class QTubeSetupTab(QWidget):
         
         self.setLayout(layout)
 
-    def set_controller(self, controller):
+    def set_controller(self, controller : TubeSetupController):
         self.controller = controller
         self.save_button.clicked.connect(self.controller.save_measurements)
         self.reset_button.clicked.connect(self.controller.reset_fields)
 
     def get_input_data(self):
         return {
-            'mic_spacing': self.mic_spacing.text(),
-            'mic1_sample': self.mic1_sample.text(),
-            'mic2_sample': self.mic2_sample.text(),
-            'tube_diameter': self.tube_diameter.text()
+            'mic_spacing': float(self.mic_spacing.text()),
+            'mic1_sample': float(self.mic1_sample.text()),
+            'mic2_sample': float(self.mic2_sample.text()),
+            'tube_diameter': float(self.tube_diameter.text())
         }
 
     def reset_fields(self):
@@ -1168,22 +1167,26 @@ class QReportGeneratorTab(QWidget):
         self.setup_ui()
 
     def setup_ui(self):
+        # Main vertical layout
         layout = QVBoxLayout()
-        
+        layout.setContentsMargins(30, 20, 30, 20)
+        layout.setSpacing(15)
+
+        MAX_INPUT_WIDTH = 400
+        FORM_WIDTH = 500  # or whatever looks good
+
         # Client Information Group
         client_group = QGroupBox("Client Information")
         client_layout = QGridLayout()
-        
-        # Create input fields for client info
-        self.client_name = QLineEdit()
-        self.company = QLineEdit()
-        self.address = QLineEdit()
-        self.purchase_order = QLineEdit()
-        self.report_number = QLineEdit()
-        self.test_date = QLineEdit()
-        self.test_requester = QLineEdit()
-        self.test_executor = QLineEdit()
-        self.test_supervisor = QLineEdit()
+        self.client_name = QLineEdit(); self.client_name.setMaximumWidth(MAX_INPUT_WIDTH)
+        self.company = QLineEdit(); self.company.setMaximumWidth(MAX_INPUT_WIDTH)
+        self.address = QLineEdit(); self.address.setMaximumWidth(MAX_INPUT_WIDTH)
+        self.purchase_order = QLineEdit(); self.purchase_order.setMaximumWidth(MAX_INPUT_WIDTH)
+        self.report_number = QLineEdit(); self.report_number.setMaximumWidth(MAX_INPUT_WIDTH)
+        self.test_date = QLineEdit(); self.test_date.setMaximumWidth(MAX_INPUT_WIDTH)
+        self.test_requester = QLineEdit(); self.test_requester.setMaximumWidth(MAX_INPUT_WIDTH)
+        self.test_executor = QLineEdit(); self.test_executor.setMaximumWidth(MAX_INPUT_WIDTH)
+        self.test_supervisor = QLineEdit(); self.test_supervisor.setMaximumWidth(MAX_INPUT_WIDTH)
         
         # Add fields to layout
         row = 0
@@ -1203,20 +1206,21 @@ class QReportGeneratorTab(QWidget):
             row += 1
             
         client_group.setLayout(client_layout)
-        
+        client_group.setMaximumWidth(FORM_WIDTH)
+        client_group.setSizePolicy(QSizePolicy.Policy.Minimum, QSizePolicy.Policy.MinimumExpanding)
+
         # Sample Information Group
         sample_group = QGroupBox("Sample Information")
-        sample_layout = QFormLayout()  # Use QFormLayout instead of QGridLayout
-        
-        # Create input fields for sample info
-        self.product_name = QLineEdit()
-        self.manufacturer = QLineEdit()
-        self.description = QLineEdit()
-        self.layers = QLineEdit()
-        self.conditions = QLineEdit()
-        self.mounting = QLineEdit()
+        sample_layout = QGridLayout()
+        self.product_name = QLineEdit(); self.product_name.setMaximumWidth(MAX_INPUT_WIDTH)
+        self.manufacturer = QLineEdit(); self.manufacturer.setMaximumWidth(MAX_INPUT_WIDTH)
+        self.description = QLineEdit(); self.description.setMaximumWidth(MAX_INPUT_WIDTH)
+        self.layers = QLineEdit(); self.layers.setMaximumWidth(MAX_INPUT_WIDTH)
+        self.conditions = QLineEdit(); self.conditions.setMaximumWidth(MAX_INPUT_WIDTH)
+        self.mounting = QLineEdit(); self.mounting.setMaximumWidth(MAX_INPUT_WIDTH)
         
         # Add fields to layout
+        row = 0
         for label, widget in [
             ("Product Name:", self.product_name),
             ("Manufacturer:", self.manufacturer),
@@ -1225,13 +1229,17 @@ class QReportGeneratorTab(QWidget):
             ("Conditions:", self.conditions),
             ("Mounting:", self.mounting)
         ]:
-            sample_layout.addRow(label, widget)
-                
+            sample_layout.addWidget(QLabel(label), row, 0)
+            sample_layout.addWidget(widget, row, 1)
+            row += 1
+            
         sample_group.setLayout(sample_layout)
-        
+        sample_group.setMaximumWidth(FORM_WIDTH)
+        sample_group.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Preferred)
+
         # Add groups to main layout
-        layout.addWidget(client_group)
-        layout.addWidget(sample_group)
+        layout.addWidget(client_group, alignment=Qt.AlignmentFlag.AlignHCenter)
+        layout.addWidget(sample_group, alignment=Qt.AlignmentFlag.AlignHCenter)
         
         # Add note about required fields
         note = QLabel("* Required fields")
@@ -1256,7 +1264,12 @@ class QReportGeneratorTab(QWidget):
         self.status_label = QLabel("")
         layout.addWidget(self.status_label)
         
-        self.setLayout(layout)
+        # Center the form
+        center_layout = QHBoxLayout()
+        center_layout.addStretch(1)
+        center_layout.addLayout(layout)
+        center_layout.addStretch(1)
+        self.setLayout(center_layout)
 
     def set_controller(self, controller):
         self.controller = controller
