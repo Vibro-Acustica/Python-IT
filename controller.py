@@ -155,9 +155,14 @@ class ResultsController:
             self.view.set_graph(QPixmap())  # Limpa o gráfico caso não haja métricas selecionadas
             return
         
-        self.selected_measurement = self.view.concluded_measurements.selectedItems()
-        if len(self.selected_measurement) == 0:
+        selected_items = self.view.concluded_measurements.selectedItems()
+        if len(selected_items) == 0:
             self.selected_measurement = "TestAbsorcao_Medicao"
+        elif len(selected_items) > 1:
+            #thow error that says only one measurement can be selected
+            raise ValueError("Only one measurement can be selected")
+        else:
+            self.selected_measurement = selected_items[0].text()
 
         # Obter dados correspondentes do modelo
         fig = self.model.generate_plot(name,self.selected_measurement)

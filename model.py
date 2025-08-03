@@ -98,6 +98,7 @@ class DataStore:
         self.measurement_results[name] = result
 
     def get_result_by_name(self,name : str, metric :str) -> np.array:
+        print(f"Getting result by name {name} and metric {metric}")
         return self.measurement_results[name]
 
     def get_results(self):
@@ -191,8 +192,8 @@ class ResultsModel:
     def get_selected_metrics(self):
         return list(self.selected_metrics)
     
-    def generate_plot(self, metric, measument):
-        measurement_data = self.get_measurement_by_name(measument, metric)
+    def generate_plot(self, metric, measument_name):
+        measurement_data = self.get_measurement_by_name(measument_name, metric)
 
         if metric == "Calibration Function":
             interchanged_measurement = self.get_measurement_by_name("TestAbsorcao_MicTrocado", metric)
@@ -451,6 +452,8 @@ class ResultsModel:
         f_min, f_max = calc.calculate_valid_frequency_range(0.1, 0.05, measurement_data_adjusted["SampleRate"])
 
         print(f"Fmax and Fmin : {f_max} {f_min}")
+
+        self.data_store.add_absorption_coef(coef=(freq, alphac), name="Absorption Coef")
 
         fig, ax = calc.plot_results(freq, alphac)
         print(fig)
@@ -1017,43 +1020,68 @@ class ReportModel:
 
     def load_test_conditions(self):
         """Load test conditions from data store."""
+        print("Loading test conditions")
         self.report_data['test_conditions'] = self.data_store.get_test_conditions()
 
     def load_tube_setup(self):
         """Load tube setup from data store."""
+        print("Loading tube setup")
         self.report_data['tube_setup'] = self.data_store.get_tube_measurements()
 
     def load_measurements(self):
         """Load measurement results from data store."""
+        print("Loading measurements")
         self.report_data['measurements'] = self.data_store.get_results()
+        print(self.report_data['measurements'])
 
     def load_results(self):
         """Load processed results from data store."""
+        print("Loading results")
         self.report_data['results'] = self.data_store.get_all_post_processed()
+        print(self.report_data['results'])
+
+    def load_absorption_data(self):
+        """Load absorption data from data store."""
+        print("Loading absorption data")
+        self.report_data['absorption_data'] = self.data_store.get_absorption_coef("Absorption Coef")
+        print(self.report_data['absorption_data'])
 
     def get_absorption_data(self):
-        """Get absorption coefficient data for different tube diameters."""
-        if not self.report_data['measurements']:
+        """Get absorption coefficient data for different tube diameters at 250Hz intervals."""
+        if not self.report_data['measurements'] or not self.report_data['absorption_data']:
+            print("No measurements or absorption data found")
             return []
 
         results = []
-        measurements = self.report_data['measurements']
+        absorption_data = self.report_data['absorption_data']
         
-        # Get data for both tube diameters
-        tube_100mm = measurements.get('TestAbsorcao_Medicao', {})
-        tube_29mm = measurements.get('TestAbsorcao_MicTrocado', {})
-
-        if tube_100mm and tube_29mm:
-            # Process the data to get frequency and absorption coefficients
-            # This is a placeholder - implement actual data processing logic
-            frequencies = tube_100mm.get('frequency', [])
-            alpha_100mm = tube_100mm.get('absorption', [])
-            alpha_29mm = tube_29mm.get('absorption', [])
+        print("Frequency array:", absorption_data[0])
+        print("Absorption array:", absorption_data[1])
+        
+        # Extract frequency and absorption arrays
+        frequencies = absorption_data[0]
+        absorptions = absorption_data[1]
+        
+        # Define the frequency intervals (250Hz steps)
+        target_frequencies = [500, 750, 1000,1250, 1500, 1750, 2000]
+        
+        # Find the closest frequency in the data for each target frequency
+        for target_freq in target_frequencies:
+            # Find the closest frequency in the data
+            closest_idx = min(range(len(frequencies)), 
+                            key=lambda i: abs(frequencies[i] - target_freq))
+            actual_freq = frequencies[closest_idx]
+            absorption_value = absorptions[closest_idx]
             
-            for freq, a100, a29 in zip(frequencies, alpha_100mm, alpha_29mm):
-                # Calculate combined value based on your specific requirements
-                combined = (a100 + a29) / 2  # This is simplified - implement proper combination logic
-                results.append((freq, a100, a29, combined))
+            if abs(actual_freq - target_freq) <= 50:
+                alpha_100mm = absorption_value
+                alpha_29mm = absorption_value  # Placeholder - should be separate data
+                combined = (alpha_100mm + alpha_29mm) / 2
+                
+                results.append((target_freq, alpha_100mm, alpha_29mm, combined))
+                print(f"Added data for {target_freq}Hz: {absorption_value:.3f}")
+            else:
+                print(f"No data found close to {target_freq}Hz (closest: {actual_freq}Hz)")
 
         return sorted(results, key=lambda x: x[0])  # Sort by frequency
 
@@ -1067,10 +1095,12 @@ class ReportModel:
 
     def refresh_data(self):
         """Refresh all data from data store."""
+        print("Refreshing data")
         self.load_test_conditions()
         self.load_tube_setup()
         self.load_measurements()
         self.load_results()
+        self.load_absorption_data()
 
 class TestConditionsModel:
     def __init__(self, data_store : DataStore):

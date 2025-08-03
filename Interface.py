@@ -75,6 +75,7 @@ class StyleHelper:
             background-color: white;
             min-height: 40px;
             color: #000000;
+            margin: 2px 0;  /* Add vertical margin to prevent overlap */
         }
 
         QComboBox {
@@ -188,6 +189,28 @@ class StyleHelper:
         QCheckBox::indicator {
             width: 13px;
             height: 13px;
+            border: 2px solid #000000;
+            background-color: white;
+        }
+
+        QCheckBox::indicator:checked {
+            background-color: #000000;
+            border: 2px solid #000000;
+        }
+
+        QCheckBox::indicator:unchecked {
+            background-color: white;
+            border: 2px solid #000000;
+        }
+
+        QCheckBox::indicator:checked:hover {
+            background-color: #333333;
+            border: 2px solid #333333;
+        }
+
+        QCheckBox::indicator:unchecked:hover {
+            background-color: #f0f0f0;
+            border: 2px solid #000000;
         }
 
         /* Spinboxes */
@@ -272,6 +295,9 @@ class MainApp(QMainWindow):
         super().__init__()
         self.setWindowTitle("Advanced Measurement System")
         self.setGeometry(100, 100, 1000, 800)
+        
+        # Set a more reasonable minimum size to avoid geometry conflicts
+        self.setMinimumSize(800, 600)
         
         # Set global stylesheet
         self.setStyleSheet(StyleHelper.get_stylesheet())
@@ -365,6 +391,9 @@ class QReportViewTab(QWidget):
         # Client Information Group
         client_group = QGroupBox("Client Information")
         client_layout = QGridLayout()
+        client_layout.setVerticalSpacing(10)  # Add vertical spacing between rows
+        client_layout.setHorizontalSpacing(15)  # Add horizontal spacing between columns
+        client_layout.setContentsMargins(15, 15, 15, 15)  # Add margins around the layout
         
         # Create input fields for client info
         self.client_name = QLineEdit()
@@ -379,7 +408,8 @@ class QReportViewTab(QWidget):
         
         # Add fields to layout
         row = 0
-        for label, widget in [
+        col = 0
+        for i, (label, widget) in enumerate([
             ("Client Name*:", self.client_name),
             ("Company:", self.company),
             ("Address:", self.address),
@@ -389,16 +419,22 @@ class QReportViewTab(QWidget):
             ("Test Requester:", self.test_requester),
             ("Test Executor*:", self.test_executor),
             #("Test Supervisor:", self.test_supervisor)
-        ]:
-            client_layout.addWidget(QLabel(label), row, 0)
-            client_layout.addWidget(widget, row, 1)
-            row += 1
+        ]):
+            client_layout.addWidget(QLabel(label), row, col * 2)
+            client_layout.addWidget(widget, row, col * 2 + 1)
+            col += 1
+            if col >= 2:  # After adding 2 fields, move to next row
+                col = 0
+                row += 1
             
         client_group.setLayout(client_layout)
         
         # Sample Information Group
         sample_group = QGroupBox("Sample Information")
         sample_layout = QGridLayout()
+        sample_layout.setVerticalSpacing(10)  # Add vertical spacing between rows
+        sample_layout.setHorizontalSpacing(15)  # Add horizontal spacing between columns
+        sample_layout.setContentsMargins(15, 15, 15, 15)  # Add margins around the layout
         
         # Create input fields for sample info
         self.product_name = QLineEdit()
@@ -593,7 +629,7 @@ class QProcessingTab(QWidget):
         
         self.measurements_checklist = QListWidget()
         self.measurements_checklist.setStyleSheet("color: #333; background-color: white; border: 1px solid #ccc;")
-        self.measurements_checklist.setMinimumHeight(200)
+        self.measurements_checklist.setMinimumHeight(150)  # Reduced from 200
         self.measurements_checklist.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
         left_panel.addWidget(self.measurements_checklist)
         
@@ -698,7 +734,7 @@ class QResultsTab(QWidget):
         measurement_panel.addWidget(QLabel("Processed Measurements List"))
         
         self.concluded_measurements = QListWidget()
-        self.concluded_measurements.setMinimumHeight(200)
+        self.concluded_measurements.setMinimumHeight(150)  # Reduced from 200
         self.concluded_measurements.setStyleSheet("background-color: white; color: black; border: 1px solid #ccc;")
         
         measurement_panel.addWidget(self.concluded_measurements)
@@ -712,7 +748,7 @@ class QResultsTab(QWidget):
         self.graph_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.graph_label.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self.graph_label.setStyleSheet("background-color: #f8f8f8; border: 1px solid #ddd;")
-        self.graph_label.setMinimumHeight(300)  # Set minimum height for better visibility
+        self.graph_label.setMinimumHeight(200)  # Reduced from 300 for better visibility
         right_panel.addWidget(self.graph_label)
         
         # Evaluation metrics section with traditional checkbox layout to maintain controller compatibility
@@ -787,7 +823,7 @@ class QTubeSetupTab(QWidget):
 
         # Action Buttons
         button_layout = QHBoxLayout()
-        self.save_button = QPushButton("Save Measurements")
+        self.save_button = QPushButton("Save Tube Setup")
         self.reset_button = QPushButton("Reset")
         
         button_layout.addWidget(self.save_button)
@@ -1178,6 +1214,9 @@ class QReportGeneratorTab(QWidget):
         # Client Information Group
         client_group = QGroupBox("Client Information")
         client_layout = QGridLayout()
+        client_layout.setVerticalSpacing(10)  # Add vertical spacing between rows
+        client_layout.setHorizontalSpacing(15)  # Add horizontal spacing between columns
+        client_layout.setContentsMargins(15, 15, 15, 15)  # Add margins around the layout
         self.client_name = QLineEdit(); self.client_name.setMaximumWidth(MAX_INPUT_WIDTH)
         self.company = QLineEdit(); self.company.setMaximumWidth(MAX_INPUT_WIDTH)
         self.address = QLineEdit(); self.address.setMaximumWidth(MAX_INPUT_WIDTH)
@@ -1190,7 +1229,8 @@ class QReportGeneratorTab(QWidget):
         
         # Add fields to layout
         row = 0
-        for label, widget in [
+        col = 0
+        for i, (label, widget) in enumerate([
             ("Client Name*:", self.client_name),
             ("Company:", self.company),
             ("Address:", self.address),
@@ -1200,10 +1240,13 @@ class QReportGeneratorTab(QWidget):
             ("Test Requester:", self.test_requester),
             ("Test Executor*:", self.test_executor),
             ("Test Supervisor:", self.test_supervisor)
-        ]:
-            client_layout.addWidget(QLabel(label), row, 0)
-            client_layout.addWidget(widget, row, 1)
-            row += 1
+        ]):
+            client_layout.addWidget(QLabel(label), row, col * 2)
+            client_layout.addWidget(widget, row, col * 2 + 1)
+            col += 1
+            if col >= 2:  # After adding 2 fields, move to next row
+                col = 0
+                row += 1
             
         client_group.setLayout(client_layout)
         client_group.setMaximumWidth(FORM_WIDTH)
@@ -1221,17 +1264,21 @@ class QReportGeneratorTab(QWidget):
         
         # Add fields to layout
         row = 0
-        for label, widget in [
+        col = 0
+        for i, (label, widget) in enumerate([
             ("Product Name:", self.product_name),
             ("Manufacturer:", self.manufacturer),
             ("Description:", self.description),
             ("Layers:", self.layers),
             ("Conditions:", self.conditions),
             ("Mounting:", self.mounting)
-        ]:
-            sample_layout.addWidget(QLabel(label), row, 0)
-            sample_layout.addWidget(widget, row, 1)
-            row += 1
+        ]):
+            sample_layout.addWidget(QLabel(label), row, col * 2)
+            sample_layout.addWidget(widget, row, col * 2 + 1)
+            col += 1
+            if col >= 2:  # After adding 2 fields, move to next row
+                col = 0
+                row += 1
             
         sample_group.setLayout(sample_layout)
         sample_group.setMaximumWidth(FORM_WIDTH)
