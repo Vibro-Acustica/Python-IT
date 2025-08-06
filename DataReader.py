@@ -45,6 +45,8 @@ class DWDataReader:
         if self.lib.DWGetMeasurementInfo(c_void_p(addressof(measurement_info))) != DWStatus.DWSTAT_OK.value:
             self.raise_error("DWGetMeasurementInfo() failed")
 
+        print("measurement_info: ",measurement_info)
+
         self.sample_rate = measurement_info.sample_rate
         self.duration = measurement_info.duration
 

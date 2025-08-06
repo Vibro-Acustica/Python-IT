@@ -157,7 +157,7 @@ class ResultsController:
         
         selected_items = self.view.concluded_measurements.selectedItems()
         if len(selected_items) == 0:
-            self.selected_measurement = "TestAbsorcao_Medicao"
+            self.selected_measurement = selected_items.text()
         elif len(selected_items) > 1:
             #thow error that says only one measurement can be selected
             raise ValueError("Only one measurement can be selected")
@@ -225,23 +225,37 @@ class MeasurementController():
     def start_measurement(self, sample_name: str):
         """Handles the measurement process."""
         print("Buttom StartMeasurement Clicked")
+        # Ask the user for a file name
+        from PyQt6.QtWidgets import QInputDialog
+        file_name, ok = QInputDialog.getText(self.view, "Enter File Name It has to be the same as the one in Dewesoft", "Measurement file name:")
+        if not ok or not file_name.strip():
+            print("Measurement cancelled or no file name provided.")
+            return
+        file_name = file_name.strip()
+
         selected_item = self.view.amostras_listbox.currentItem()
         if selected_item:
             sample_name = selected_item.text()
-            #self.dewesoft.measure(2, "orginal_signal")
-            #self.dewesoft.close()
+            full_file_name = f"{file_name}_{sample_name}"
+            self.dewesoft.measure(2, full_file_name)
+            self.dewesoft.close()
 
-            self.dreader.open_data_file("TestAbsorcao_Medicao")
+            self.dreader.open_data_file(full_file_name)
+            names, num =self.dreader.get_channel_list()
+            #print("channel names: ", [name.name.decode('utf-8') for name in names])
+            #print("channel number: ",num)
+            self.model.save_channel_names([name.name.decode('utf-8') for name in names])
             data = self.dreader.get_measurements_as_dataframe()
             print("measurements read")
-            self.model.add_measurement_result(data,"TestAbsorcao_Medicao")
+            self.model.add_measurement_result(data, file_name)
             self.dreader.close()
 
-            self.dreader.open_data_file("TestAbsorcao_MicTrocado")
-            data = self.dreader.get_measurements_as_dataframe()
-            print("measurements read")
-            self.model.add_measurement_result(data,"TestAbsorcao_MicTrocado")
-            self.dreader.close()
+            # If you want to add more measurements, repeat with the new file name
+            # self.dreader.open_data_file("TestAbsorcao_MicTrocado")
+            # data = self.dreader.get_measurements_as_dataframe()
+            # print("measurements read")
+            # self.model.add_measurement_result(data, "TestAbsorcao_MicTrocado")
+            # self.dreader.close()
 
             self.populate_results()
 

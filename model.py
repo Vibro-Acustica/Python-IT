@@ -54,6 +54,7 @@ class Dewesoft:
 class DataStore:
     """Centralized data store for sharing measurement results between models."""
     def __init__(self):
+        self.chanel_names_in_dewesoft = []
         self.tube_measurement = {}
         self.test_conditions = {}
         self.measurement_results = {}
@@ -150,6 +151,12 @@ class DataStore:
     def get_warnings(self):
         return self.warnings
     
+    def set_channel_names(self, names: list[str]):
+        self.chanel_names_in_dewesoft = names
+
+    def get_channel_names(self):
+        return self.chanel_names_in_dewesoft
+    
 class TubeSetupModel:
     def __init__(self, data_store : DataStore):
         self.data = {
@@ -205,8 +212,21 @@ class ResultsModel:
             return fig
             
         if metric == "Fourier Transform":
-            signal_1 = np.asarray(measurement_data['AI A-1']).flatten()
-            time = np.asarray(measurement_data['Time']).flatten()
+            try:
+                signal_1 = np.asarray(measurement_data['AI A-1']).flatten()
+                time = np.asarray(measurement_data['Time']).flatten()
+            except:
+                channel_names = self.data_store.get_channel_names()
+                channel_: str
+                for name in channel_names:
+                    if 'time' not in name.lower():
+                        channel_ = name
+                        break
+                signal_1 = measurement_data[channel_]
+                time = measurement_data['time']
+                fig, ax = plt.subplots(figsize=(12, 5))
+                ax.plot(time, signal_1, label="Original Signal", color="blue")
+
 
             # Compute sampling interval and length
             dt = 1 / measurement_data['SampleRate']
@@ -242,13 +262,26 @@ class ResultsModel:
             return fig
         
         if metric == "Original Signal":
-            signal_1 = measurement_data['AI A-1']
-            signal_2 = measurement_data['AI A-2']
-            time = measurement_data['Time']
+            try:
+                signal_1 = measurement_data['AI A-1']
+                signal_2 = measurement_data['AI A-2']
+                time = measurement_data['Time']
+                fig, ax = plt.subplots(figsize=(12, 5))
+                ax.plot(time, signal_1, label="Original Signal", color="blue")
+                ax.plot(time, signal_2, label="Signal 2 (AI A-2)", color="orange")
+            except:
+                channel_names = self.data_store.get_channel_names()
+                channel_: str
+                for name in channel_names:
+                    if 'time' not in name.lower():
+                        channel_ = name
+                        break
+                signal_1 = measurement_data[channel_]
+                time = measurement_data['time']
+                fig, ax = plt.subplots(figsize=(12, 5))
+                ax.plot(time, signal_1, label="Original Signal", color="blue")
 
-            fig, ax = plt.subplots(figsize=(12, 5))
-            ax.plot(time, signal_1, label="Original Signal", color="blue")
-            ax.plot(time, signal_2, label="Signal 2 (AI A-2)", color="orange")
+
             ax.set_xlabel('Time (s)')
             ax.set_ylabel('Magnitude')
             ax.set_title('Original Signal')
@@ -518,6 +551,12 @@ class MeasurementModel:
     def add_measurement_result(self, result, name):
         """Adds a measurement result to the results dict."""
         self.data_store.add_result(result, name)
+
+    def save_channel_names(self, names: list[str]):
+        self.data_store.chanel_names_in_dewesoft = names
+
+    def get_channel_names(self):
+        return self.data_store.chanel_names_in_dewesoft
 
 class SamplesModel:
     def __init__(self,data_store : DataStore):
