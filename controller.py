@@ -221,6 +221,23 @@ class MeasurementController():
 
         self.signals.measurement_results_updated.emit()  # Notify others
         
+    def load_both_measurements(self, sample_name, normal_name, switched_name):
+        """Load both normal and switched measurements for a sample."""
+        # Load normal measurement
+        self.dreader.open_data_file(normal_name)
+        data_normal = self.dreader.get_measurements_as_dataframe()
+        print("Normal measurement read")
+        self.model.add_measurement_result(data_normal, normal_name)
+        self.dreader.close()
+
+        # Load switched measurement
+        self.dreader.open_data_file(switched_name)
+        data_switched = self.dreader.get_measurements_as_dataframe()
+        print("Switched measurement read")
+        self.model.add_measurement_result(data_switched, switched_name)
+        self.dreader.close()
+
+        self.populate_results()
 
     def start_measurement(self, sample_name: str):
         """Handles the measurement process."""

@@ -5,7 +5,7 @@ from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, QT
                              QLabel, QLineEdit, QPushButton, QGridLayout, QListWidget,
                              QComboBox, QTextBrowser, QMessageBox, QStatusBar, QHBoxLayout, QFrame,
                              QFileDialog, QProgressBar, QCheckBox, QTabWidget, QListWidgetItem, QSizePolicy, 
-                             QGroupBox, QAbstractItemView, QFormLayout)  # Importação corrigida
+                             QGroupBox, QAbstractItemView, QFormLayout, QInputDialog)  # Importação corrigida
 from PyQt6.QtGui import QFont, QDoubleValidator, QColor
 from PyQt6.QtCore import Qt
 
@@ -590,6 +590,8 @@ class QMeasureTab(QWidget):
 
         self.start_measurement_button = QPushButton("Measure")
         measure_control_layout.addWidget(self.start_measurement_button)
+        self.load_measurement_button = QPushButton("Load Measurements")
+        measure_control_layout.addWidget(self.load_measurement_button)
 
         self.resultados_listbox = QListWidget()
         self.resultados_listbox.setStyleSheet("color : black")
@@ -601,6 +603,7 @@ class QMeasureTab(QWidget):
         self.setLayout(layout)
 
         self.start_measurement_button.clicked.connect(self.start_measurement)
+        self.load_measurement_button.clicked.connect(self.load_measurements)
 
     def start_measurement(self):
         """Informa ao controller que o botão de medição foi pressionado."""
@@ -609,6 +612,20 @@ class QMeasureTab(QWidget):
         if selected_item:
             sample_name = selected_item.text()
             self.controller.start_measurement(sample_name)
+
+    def load_measurements(self):
+        selected_item = self.amostras_listbox.currentItem()
+        if selected_item:
+            sample_name = selected_item.text()
+            # Ask for the normal measurement name
+            normal_name, ok1 = QInputDialog.getText(self, "Enter Normal Measurement Name", "Normal mics position measurement file name:")
+            if not ok1 or not normal_name.strip():
+                return
+            # Ask for the switched measurement name
+            switched_name, ok2 = QInputDialog.getText(self, "Enter Switched Measurement Name", "Switched mics position measurement file name:")
+            if not ok2 or not switched_name.strip():
+                return
+            self.controller.load_both_measurements(sample_name, normal_name.strip(), switched_name.strip())
 
     def set_controller(self, controller):
         self.controller = controller
