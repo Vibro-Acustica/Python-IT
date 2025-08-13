@@ -22,6 +22,13 @@ A Python application to automate Dewesoft for conducting impedance tube measurem
    pip install uv
    ```
 
+3. **Create and Activate a virtual environment**
+   ```sh
+   python -m venv .venv
+
+   .venv\Scripts\activate
+   ```
+
 3. **Install all dependencies (from lockfile):**
 
    ```sh
