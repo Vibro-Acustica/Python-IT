@@ -9,12 +9,7 @@ A Python application to automate Dewesoft for conducting impedance tube measurem
 
 ## Installation
 
-1. **Clone the repository** (if you haven’t already):
-
-   ```sh
-   git clone <your-repo-url>
-   cd <your-repo-directory>
-   ```
+1. **Unzip repository** (if you haven’t already):
 
 2. **Install [uv](https://github.com/astral-sh/uv):**
 
