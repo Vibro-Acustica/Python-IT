@@ -20,6 +20,7 @@ from lxml import etree
 from docx.oxml import OxmlElement
 from datetime import date
 import logging
+from dotenv import load_dotenv
 
 
 from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, QTabWidget,
@@ -28,6 +29,7 @@ from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, QT
                              QFileDialog, QProgressBar, QCheckBox, QTabWidget, QListWidgetItem, QSizePolicy, QGroupBox, QAbstractItemView, QSpinBox)  # Importação corrigida
 from PyQt6.QtGui import QFont, QDoubleValidator, QColor
 from PyQt6.QtCore import Qt
+
 
 class BaseController(QObject):
     def __init__(self):
@@ -191,11 +193,14 @@ class MeasurementController():
         self.model = model
         self.view = view
         self.view.set_controller(self)
-        self.dreader = DWDataReader()
+        load_dotenv()
+        dewesoft_setup_path = os.getenv("DEWESOFT_SETUP_PATH")
+        dewesoft_files_path = os.getenv("DEWESOFT_READ_FILES_PATH")
+        self.dreader = DWDataReader(file_paths=dewesoft_files_path)
         self.dewesoft = Dewesoft()
         self.dewesoft.set_sample_rate(1000) 
         self.dewesoft.set_dimensions(800, 600)
-        self.dewesoft.load_setup("C:\\Users\\jvv20\\Vibra\\DeweSoftData\\Setups\\test.dxs")
+        self.dewesoft.load_setup(dewesoft_setup_path)
 
         self.signals = MeasurementsSignalEmitter()
         
@@ -249,12 +254,17 @@ class MeasurementController():
             print("Measurement cancelled or no file name provided.")
             return
         file_name = file_name.strip()
+        time_measured, ok = QInputDialog.getText(self.view, "Enter the measurement time in seconds", "Measurement time (s):")
+        if not ok or not file_name.strip():
+            print("Measurement cancelled or time was given")
+            return
+        time_measured = int(time_measured)
 
         selected_item = self.view.amostras_listbox.currentItem()
         if selected_item:
             sample_name = selected_item.text()
             full_file_name = f"{file_name}_{sample_name}"
-            self.dewesoft.measure(2, full_file_name)
+            self.dewesoft.measure(time_measured, full_file_name)
             self.dewesoft.close()
 
             self.dreader.open_data_file(full_file_name)
