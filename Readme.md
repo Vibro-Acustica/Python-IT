@@ -32,14 +32,14 @@ A Python application to automate Dewesoft for conducting impedance tube measurem
 3. **Install all dependencies (from lockfile):**
 
    ```sh
-   uv pip install -r uv.lock
+   uv sync
    ```
 
 
 
 4. **Set up your environment variables:**
 
-   Create a `.env` file in the project root with content like:
+   Create a `.env` file in the project root with content like, use the path in your machine, this is just an example:
 
    ```
    DEWESOFT_SETUP_PATH=C:\Users\jvv20\Vibra\DeweSoftData\Setups\test.dxs
