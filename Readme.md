@@ -9,10 +9,16 @@ A Python application to automate Dewesoft for conducting impedance tube measurem
 
 ## Installation
 
-1. **Unzip repository** (if you haven’t already):
+1. **Unzip repository** (if you haven't already)
 
 2. **Install [uv](https://github.com/astral-sh/uv):**
 
+   On Windows (PowerShell):
+   ```powershell
+   powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+   ```
+
+   Or via pip:
    ```sh
    pip install uv
    ```
@@ -22,19 +28,16 @@ A Python application to automate Dewesoft for conducting impedance tube measurem
    uv venv --python 3.12
    ```
 
-4. **Activate the virtual environment:**
-   ```sh
-   .venv\Scripts\activate
-   ```
-
-5. **Install all dependencies:**
+4. **Install all dependencies:**
    ```sh
    uv sync
    ```
 
+   This will automatically:
+   - Create a virtual environment in `.venv`
+   - Install all dependencies from the lockfile
 
-
-6. **Set up your environment variables:**
+5. **Set up your environment variables:**
 
    Create a `.env` file in the project root with content like, use the path in your machine, this is just an example:
 
@@ -55,6 +58,24 @@ A Python application to automate Dewesoft for conducting impedance tube measurem
    python main.py
    ```
 
+
+## Troubleshooting
+
+### ModuleNotFoundError: No module named 'win32com' or 'PyQt6'
+
+If you encounter this error, it means the dependencies are not installed in the active Python environment. Follow these steps:
+
+1. **Delete any existing `.venv` folder** in the project directory
+2. **Run `uv sync` again** to create a fresh virtual environment with all dependencies
+3. **Use `uv run python main.py`** to run the application, which ensures the correct environment is used
+
+Alternatively, if you prefer manual activation:
+```sh
+.venv\Scripts\activate
+python main.py
+```
+
+Make sure you see `(.venv)` at the beginning of your command prompt, indicating the virtual environment is active.
 
 ## License
 
