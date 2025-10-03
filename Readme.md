@@ -4,7 +4,7 @@ A Python application to automate Dewesoft for conducting impedance tube measurem
 
 ## Requirements
 
-- Python 3.9 or newer
+- Python 3.12 or newer
 - [uv](https://github.com/astral-sh/uv) (a fast Python package/dependency manager)
 
 ## Installation
@@ -17,22 +17,24 @@ A Python application to automate Dewesoft for conducting impedance tube measurem
    pip install uv
    ```
 
-3. **Create and Activate a virtual environment**
+3. **Create virtual environment with Python 3.12:**
    ```sh
-   python -m venv .venv
+   uv venv --python 3.12
+   ```
 
+4. **Activate the virtual environment:**
+   ```sh
    .venv\Scripts\activate
    ```
 
-3. **Install all dependencies (from lockfile):**
-
+5. **Install all dependencies:**
    ```sh
    uv sync
    ```
 
 
 
-4. **Set up your environment variables:**
+6. **Set up your environment variables:**
 
    Create a `.env` file in the project root with content like, use the path in your machine, this is just an example:
 
@@ -43,8 +45,12 @@ A Python application to automate Dewesoft for conducting impedance tube measurem
 
 ## Running the Project
 
-1. **Run the main application:**
+1. **Make sure the virtual environment is activated:**
+   ```sh
+   .venv\Scripts\activate
+   ```
 
+2. **Run the main application:**
    ```sh
    python main.py
    ```
